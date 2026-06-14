@@ -1,0 +1,19 @@
+﻿__pycache__/
+*.pyc
+*.pyo
+*.log
+*.tmp
+.env
+.venv/
+venv/
+build/
+dist/
+.cache/
+.DS_Store
+Thumbs.db
+
+# Local working/output folders
+work/*
+outputs/*
+!work/.gitkeep
+!outputs/.gitkeep
