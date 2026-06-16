@@ -17,3 +17,37 @@ work/*
 outputs/*
 !work/.gitkeep
 !outputs/.gitkeep
+
+# Sensitive local config
+.env
+.env.*
+!.env.example
+
+# Python/runtime generated files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Runtime logs and local state
+logs/
+*.db
+*.sqlite
+*.sqlite3
+
+# Local editor state
+.cursor/
+.vscode/
+.idea/
+
+# Large model/runtime artifacts imported from devices
+*.bin
+*.onnx
+*.pt
+*.pth
+*.engine
+
+# Generated media artifacts
+*.png
+*.gif
+*.jpg
+*.jpeg
