@@ -1,7 +1,9 @@
 import os
 
 import cv2
+import requests
 
+from settings import PUBLIC_MONITOR_URL
 from settings import BASE_DIR
 from core.ptz_controller import ptz
 from services.text_overlay import draw_chinese_text
@@ -366,14 +368,43 @@ class AppService:
     def self_check(self):
         state = self.runtime.snapshot()
         serial_ok = self.ptz_service.serial_ok()
+        public_url = state.get("public_monitor_url") or (state.get("monitor_url") if PUBLIC_MONITOR_URL else "")
+        lan_url = state.get("lan_monitor_url") or state.get("monitor_url") or "未生成"
         lines = ["智哨系统自检"]
         lines.append(f"{'通过' if state['running'] else '注意'} - 主程序：{'运行中' if state['running'] else '未启动'}")
         lines.append(f"{'通过' if state['camera_ok'] else '注意'} - 摄像头：{state['camera_message']}")
         lines.append(f"{'通过' if serial_ok else '注意'} - 云台串口：{ptz.port} {'已连接' if serial_ok else '未连接'}")
-        lines.append(f"通过 - 本地看板：{state.get('monitor_url') or '未生成'}")
+        lines.append(f"通过 - 本地看板：{lan_url}")
+        lines.append(self._public_connectivity_line(public_url))
+        lines.append(self._brain_connectivity_line())
+        if hasattr(self.store, "access_summary"):
+            lines.append(f"访问摘要：{self.store.access_summary()}")
         lines.append("")
         lines.append(self.status_text())
         return "\n".join(lines)
+
+    def _public_connectivity_line(self, public_url):
+        if not public_url:
+            return "注意 - 公网入口：未配置，外网手机暂时不能直接打开看护页。"
+        health_url = f"{public_url.rstrip('/')}/health"
+        try:
+            response = requests.get(health_url, timeout=3)
+            if response.status_code == 200:
+                return f"通过 - 公网入口：{public_url}"
+            return f"注意 - 公网入口：{public_url} HTTP {response.status_code}"
+        except Exception as exc:
+            return f"注意 - 公网入口：{public_url} 暂时不可达（{exc}）"
+
+    def _brain_connectivity_line(self):
+        if not hasattr(self.brain, "health_check"):
+            return "注意 - VLM 大脑：当前客户端没有健康检查接口。"
+        try:
+            result = self.brain.health_check() or {}
+        except Exception as exc:
+            return f"注意 - VLM 大脑：健康检查异常（{exc}）"
+        label = result.get("label", "VLM 大脑")
+        detail = result.get("detail", "")
+        return f"{'通过' if result.get('ok') else '注意'} - {label}：{detail}"
 
     def manual(self):
         url = self.runtime.snapshot().get("monitor_url") or "http://RDK_IP:5000"
@@ -448,7 +479,14 @@ class AppService:
         )
         result = self.brain.ask(question, frame, system_note=privacy_context)
         if not result:
-            return {"answer": "云端大脑暂时连接不上，但本地看护、摔倒检测和云台跟随仍在运行。", "need_image": False}
+            return {
+                "answer": (
+                    "云端大脑暂时连接不上，本地看护仍在运行。\n\n"
+                    f"{self.system_brief_text()}\n\n"
+                    "我现在不能做复杂视觉问答，但摄像头状态、摔倒检测、云台跟随和看护页仍可继续使用。"
+                ),
+                "need_image": False,
+            }
         return result
 
     def make_reply_gif(self):

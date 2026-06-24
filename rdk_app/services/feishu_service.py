@@ -274,8 +274,24 @@ class FeishuService:
             self.bot.reply_text(msg_id, f"{answer}\n\n隐私保护：本次只展示脱敏骨架，不展示真实摄像头画面。")
 
     def _monitor_link(self):
-        url = self.app_service.runtime.snapshot().get("monitor_url")
-        health_url = f"{url}/health" if url else ""
+        state = self.app_service.runtime.snapshot()
+        url = state.get("monitor_url")
+        public_url = state.get("public_monitor_url") or ""
+        lan_url = state.get("lan_monitor_url") or (url if not public_url else "")
+        if public_url:
+            return "\n".join([
+                "公网看护页：",
+                public_url,
+                "",
+                "公网连通性测试：",
+                f"{public_url.rstrip('/')}/health",
+                "",
+                "局域网备用入口：",
+                lan_url or "暂无地址",
+                "",
+                "页面默认展示状态卡和脱敏画面；真实画面默认关闭，开启前需要隐私复核，并会限时自动关闭。",
+            ])
+        health_url = f"{url.rstrip('/')}/health" if url else ""
         return "\n".join([
             "安心看护页（局域网）：",
             url or "暂无地址",

@@ -15,7 +15,11 @@ from services.feishu_service import FeishuService
 
 class FakeRuntime:
     def snapshot(self):
-        return {"monitor_url": "http://10.0.0.2:5000"}
+        return {
+            "monitor_url": "https://care.example.com",
+            "public_monitor_url": "https://care.example.com",
+            "lan_monitor_url": "http://10.0.0.2:5000",
+        }
 
 
 class FakeVision:
@@ -115,6 +119,13 @@ class FeishuCardTests(unittest.TestCase):
     def test_text_menu_replies_card(self):
         self.service._reply_control_card("msg-1")
         self.assertEqual(len(self.bot.cards), 1)
+
+    def test_monitor_link_shows_public_and_lan_entries(self):
+        text = self.service._monitor_link()
+        self.assertIn("公网看护页", text)
+        self.assertIn("https://care.example.com", text)
+        self.assertIn("局域网备用入口", text)
+        self.assertIn("http://10.0.0.2:5000", text)
 
     def test_text_menu_with_feishu_internal_mention_replies_card(self):
         self.service.handle_message(TextEvent('@_user_1 卡片'))

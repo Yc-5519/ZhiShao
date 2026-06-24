@@ -187,6 +187,54 @@ class Store:
             events.append(item)
         return events
 
+    def record_web_access(self, method, path, status_code, remote_addr="", user_agent=""):
+        path = str(path or "/")[:160]
+        method = str(method or "GET").upper()[:12]
+        try:
+            status_code = int(status_code)
+        except (TypeError, ValueError):
+            status_code = 0
+        self.record_event(
+            "web_access",
+            f"{method} {path} {status_code}",
+            "info",
+            {"method": method, "path": path, "status_code": status_code},
+        )
+
+    def access_summary(self, date=None):
+        date = date or self.today()
+        with self.lock, self._connect() as conn:
+            total_row = conn.execute(
+                "SELECT COUNT(*) AS c FROM events WHERE type = ? AND ts LIKE ?",
+                ("web_access", f"{date}%"),
+            ).fetchone()
+            rows = conn.execute(
+                "SELECT ts, data FROM events WHERE type = ? AND ts LIKE ? ORDER BY id DESC LIMIT 20",
+                ("web_access", f"{date}%"),
+            ).fetchall()
+        if not rows:
+            return "今日暂无公网访问记录。"
+        total = int(total_row["c"] if total_row else len(rows))
+        latest = rows[0]
+        try:
+            data = json.loads(latest["data"] or "{}")
+        except Exception:
+            data = {}
+        method = data.get("method", "GET")
+        path = data.get("path", "/")
+        status_code = data.get("status_code", "-")
+        time_text = str(latest["ts"] or "")[-8:] or "未知时间"
+        command_count = 0
+        for row in rows:
+            try:
+                item = json.loads(row["data"] or "{}")
+            except Exception:
+                item = {}
+            if item.get("path") == "/api/command":
+                command_count += 1
+        suffix = f"，最近 20 条中页面命令 {command_count} 次" if command_count else ""
+        return f"今日公网访问 {total} 次{suffix}，最近一次 {time_text} {method} {path} {status_code}。"
+
     def record_family_action(self, action, note="", source="feishu"):
         with self.lock, self._connect() as conn:
             conn.execute(
@@ -219,4 +267,3 @@ class Store:
             return json.loads(row["value"])
         except Exception:
             return default
-

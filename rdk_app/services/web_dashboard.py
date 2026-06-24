@@ -7,6 +7,8 @@ import cv2
 from flask import Flask, Response, jsonify, request
 from werkzeug.serving import WSGIRequestHandler
 
+from settings import PUBLIC_MONITOR_URL
+
 
 def get_lan_ip():
     try:
@@ -19,8 +21,20 @@ def get_lan_ip():
         return "127.0.0.1"
 
 
-def get_monitor_url(port=5000):
+def _clean_url(url):
+    return (url or "").strip().rstrip("/")
+
+
+def get_public_monitor_url():
+    return _clean_url(PUBLIC_MONITOR_URL)
+
+
+def get_lan_monitor_url(port=5000):
     return f"http://{get_lan_ip()}:{port}"
+
+
+def get_monitor_url(port=5000):
+    return get_public_monitor_url() or get_lan_monitor_url(port)
 
 
 class QuietRequestHandler(WSGIRequestHandler):
@@ -37,6 +51,9 @@ class WebDashboard:
         logging.getLogger("werkzeug").setLevel(logging.ERROR)
         self._routes()
 
+    def _should_log_access(self, path):
+        return not (path.startswith("/video/") or path == "/api/status")
+
     def _jpeg_stream(self, source):
         while True:
             frame = self.app_service.get_video_frame(source)
@@ -47,6 +64,21 @@ class WebDashboard:
             time.sleep(0.05 if source == "raw" else 0.08)
 
     def _routes(self):
+        @self.flask.after_request
+        def log_access(response):
+            if self._should_log_access(request.path):
+                try:
+                    self.app_service.store.record_web_access(
+                        request.method,
+                        request.path,
+                        response.status_code,
+                        request.remote_addr or "",
+                        request.headers.get("User-Agent", ""),
+                    )
+                except Exception as exc:
+                    print(f"⚠️ [访问日志] 记录失败: {exc}")
+            return response
+
         @self.flask.route("/video/raw")
         def video_raw():
             resp = Response(self._jpeg_stream("raw"), mimetype="multipart/x-mixed-replace; boundary=frame")
@@ -69,12 +101,16 @@ class WebDashboard:
 
         @self.flask.route("/health")
         def health():
+            public_url = get_public_monitor_url()
+            lan_url = get_lan_monitor_url(self.port)
             return jsonify({
                 "ok": True,
                 "service": "ZhiShao WebDashboard",
                 "monitor_url": get_monitor_url(self.port),
+                "public_monitor_url": public_url,
+                "lan_monitor_url": lan_url,
                 "lan_ip": get_lan_ip(),
-                "note": "手机必须能访问 RDK 所在网络。子女不在同一网络时，需要 HTTPS 中转或内网穿透。",
+                "note": "已配置公网入口。" if public_url else "手机必须能访问 RDK 所在网络。子女不在同一网络时，需要 HTTPS 中转或内网穿透。",
             })
 
         @self.flask.route("/api/command", methods=["POST"])

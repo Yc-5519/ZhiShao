@@ -90,6 +90,19 @@ class ReportService:
         except Exception:
             return fallback
 
+    def _system_summary(self):
+        access = self.store.access_summary() if hasattr(self.store, "access_summary") else "暂无访问摘要。"
+        brain_line = "VLM 大脑：未检测"
+        if hasattr(self.brain, "health_check"):
+            try:
+                result = self.brain.health_check() or {}
+                brain_line = f"VLM 大脑：{'正常' if result.get('ok') else '注意'}"
+                if result.get("detail"):
+                    brain_line += f"（{result.get('detail')}）"
+            except Exception as exc:
+                brain_line = f"VLM 大脑：健康检查异常（{exc}）"
+        return f"{brain_line}\n{access}"
+
     def send_report(self):
         metrics = self.store.get_metrics()
         events = self.store.list_events(limit=30, date=self.store.today())
@@ -121,6 +134,7 @@ class ReportService:
                 "隐私边界\n"
                 "今日日报只展示状态、趋势和脱敏图表；真实画面默认不主动推送，仅在家属临时确认安全时限时开启。"
             )}],
+            [{"tag": "text", "text": f"系统与访问摘要\n{self._system_summary()}"}],
         ]
         if today_key:
             blocks.append([{"tag": "img", "image_key": today_key}])

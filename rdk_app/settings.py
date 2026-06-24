@@ -76,8 +76,12 @@ VLM_BASE_URL = _env("ZHISHAO_VLM_BASE_URL", f"http://{VLM_SERVER_IP}:{VLM_SERVER
 BRAIN_URL_ANALYZE = _env("ZHISHAO_BRAIN_URL_ANALYZE", f"{VLM_BASE_URL}/analyze")
 BRAIN_URL_ASK = _env("ZHISHAO_BRAIN_URL_ASK", f"{VLM_BASE_URL}/ask")
 BRAIN_URL_SUMMARIZE = _env("ZHISHAO_BRAIN_URL_SUMMARIZE", f"{VLM_BASE_URL}/summarize")
+BRAIN_URL_HEALTH = _env("ZHISHAO_BRAIN_URL_HEALTH", BRAIN_URL_ANALYZE.replace("/analyze", "/health"))
 
 
+# Public monitor URL exposed by cloud tunnel / reverse proxy.
+# Leave empty to show the RDK LAN URL.
+PUBLIC_MONITOR_URL = _env("ZHISHAO_PUBLIC_MONITOR_URL", "").rstrip("/")
 
 # =========================================================================
 # 看护地点

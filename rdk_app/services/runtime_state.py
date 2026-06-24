@@ -98,6 +98,8 @@ class RuntimeState:
         self.pose_rejects = {}
         self.last_seen_time = ""
         self.monitor_url = ""
+        self.public_monitor_url = ""
+        self.lan_monitor_url = ""
         self.care_mode = "边界看护"
         self.raw_video_allowed_until = 0.0
         self.raw_video_reason = ""
@@ -153,6 +155,8 @@ class RuntimeState:
                 "pose_rejects": self.pose_rejects,
                 "last_seen_time": self.last_seen_time,
                 "monitor_url": self.monitor_url,
+                "public_monitor_url": self.public_monitor_url,
+                "lan_monitor_url": self.lan_monitor_url,
                 "care_mode": self.care_mode,
                 "raw_video_allowed": raw_left > 0,
                 "raw_video_seconds_left": raw_left,

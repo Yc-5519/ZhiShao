@@ -13,7 +13,7 @@ from services.report_service import ReportService
 from services.runtime_state import FrameHub, RuntimeState
 from services.store import Store
 from services.vision_worker import VisionWorker
-from services.web_dashboard import WebDashboard, get_monitor_url
+from services.web_dashboard import WebDashboard, get_lan_monitor_url, get_monitor_url, get_public_monitor_url
 
 _MAIN_LOCK_HANDLE = None
 
@@ -64,7 +64,13 @@ def build_app():
     vision = VisionWorker(frame_hub, runtime, store, ptz_service, brain, send_fall_alert(bot, store))
     app_service = AppService(store, runtime, frame_hub, vision, ptz_service, report_service, brain, bot)
     monitor_url = get_monitor_url()
-    runtime.update(monitor_url=monitor_url, fall_mode="保守", care_mode="边界看护")
+    runtime.update(
+        monitor_url=monitor_url,
+        public_monitor_url=get_public_monitor_url(),
+        lan_monitor_url=get_lan_monitor_url(),
+        fall_mode="保守",
+        care_mode="边界看护",
+    )
     web = WebDashboard(app_service)
     feishu = FeishuService(app_service, bot)
     return store, runtime, frame_hub, ptz_service, report_service, vision, app_service, web, feishu

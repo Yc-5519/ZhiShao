@@ -6,6 +6,7 @@ import base64
 from settings import (
     BRAIN_URL_ASK,
     BRAIN_URL_ANALYZE,
+    BRAIN_URL_HEALTH,
     BRAIN_URL_SUMMARIZE,
     CARE_CITY,
     CARE_LOCATION,
@@ -17,6 +18,7 @@ class BrainClient:
         self.ask_url = BRAIN_URL_ASK
         self.analyze_url = BRAIN_URL_ANALYZE
         self.summarize_url = BRAIN_URL_SUMMARIZE
+        self.health_url = BRAIN_URL_HEALTH
         self.privacy_url = self.analyze_url.replace("/analyze", "/privacy_check")
         
         # 默认使用固定看护地点，避免手机热点/运营商出口导致城市漂移。
@@ -277,5 +279,18 @@ class BrainClient:
             if response.status_code == 200: return response.json().get('summary', '')
         except Exception: pass
         return ""
+
+    def health_check(self):
+        try:
+            response = requests.get(self.health_url, timeout=3)
+            if response.status_code != 200:
+                return {"ok": False, "label": "VLM 大脑", "detail": f"{self.health_url} HTTP {response.status_code}"}
+            data = response.json()
+            ok = bool(data.get("ok", True))
+            model = data.get("model", "")
+            detail = f"{self.health_url}" + (f" model={model}" if model else "")
+            return {"ok": ok, "label": "VLM 大脑", "detail": detail}
+        except Exception as e:
+            return {"ok": False, "label": "VLM 大脑", "detail": f"{self.health_url} {e}"}
 
 brain = BrainClient()
