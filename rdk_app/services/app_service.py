@@ -391,6 +391,8 @@ class AppService:
             response = requests.get(health_url, timeout=3)
             if response.status_code == 200:
                 return f"通过 - 公网入口：{public_url}"
+            if response.status_code in (401, 403):
+                return f"通过 - 公网入口：{public_url}（需要登录）"
             return f"注意 - 公网入口：{public_url} HTTP {response.status_code}"
         except Exception as exc:
             return f"注意 - 公网入口：{public_url} 暂时不可达（{exc}）"

@@ -134,6 +134,13 @@ class CloudFeatureTests(unittest.TestCase):
         self.assertIn("VLM 大脑", text)
         self.assertIn("通过", text)
 
+    def test_self_check_treats_public_auth_challenge_as_reachable(self):
+        fake_response = SimpleNamespace(status_code=401)
+        with mock.patch("services.app_service.requests.get", return_value=fake_response):
+            text = self.make_app().self_check()
+        self.assertIn("通过 - 公网入口", text)
+        self.assertIn("需要登录", text)
+
     def test_ask_brain_falls_back_to_local_status_when_vlm_unavailable(self):
         answer = self.make_app().ask_brain("现在安全吗")
         self.assertFalse(answer["need_image"])
