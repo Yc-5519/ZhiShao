@@ -33,6 +33,9 @@ logs/
 *.db
 *.sqlite
 *.sqlite3
+cloud_auth/*.db
+cloud_auth/.venv/
+cloud_auth/instance/
 
 # Local editor state
 .cursor/

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>智哨看护登录</title>
+  <style>
+    :root { color-scheme: light; --bg:#f5f7fb; --panel:#ffffff; --text:#1c2430; --muted:#64748b; --line:#d9e1ec; --blue:#2563eb; --red:#dc2626; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; display:grid; place-items:center; background:var(--bg); color:var(--text); font-family:"Microsoft YaHei","Segoe UI",sans-serif; }
+    main { width:min(420px, calc(100vw - 32px)); background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:28px; box-shadow:0 18px 48px rgba(15,23,42,.12); }
+    h1 { margin:0 0 6px; font-size:24px; }
+    p { margin:0 0 22px; color:var(--muted); line-height:1.55; }
+    label { display:block; margin:14px 0 6px; font-weight:600; }
+    input { width:100%; height:42px; border:1px solid var(--line); border-radius:6px; padding:0 12px; font-size:16px; }
+    button { width:100%; height:42px; margin-top:20px; border:0; border-radius:6px; background:var(--blue); color:white; font-size:16px; cursor:pointer; }
+    .error { color:var(--red); margin-top:14px; min-height:22px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>智哨看护登录</h1>
+    <p>请输入管理员分配的账号。登录后才能访问公网看护页面。</p>
+    <form method="post" action="/login">
+      <input type="hidden" name="next" value="{{ next_url }}">
+      <label for="username">用户名</label>
+      <input id="username" name="username" autocomplete="username" required autofocus>
+      <label for="password">密码</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+      <button type="submit">登录</button>
+      <div class="error">{{ error }}</div>
+    </form>
+  </main>
+</body>
+</html>

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>智哨用户管理</title>
+  <style>
+    :root { color-scheme: light; --bg:#f5f7fb; --panel:#fff; --text:#172033; --muted:#64748b; --line:#d8e0eb; --blue:#2563eb; --red:#dc2626; --green:#15803d; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font-family:"Microsoft YaHei","Segoe UI",sans-serif; }
+    header { height:56px; display:flex; align-items:center; justify-content:space-between; padding:0 22px; background:var(--panel); border-bottom:1px solid var(--line); }
+    h1 { margin:0; font-size:22px; }
+    main { max-width:1080px; margin:22px auto; padding:0 16px; display:grid; gap:16px; }
+    section { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:18px; }
+    h2 { margin:0 0 14px; font-size:18px; }
+    table { width:100%; border-collapse:collapse; }
+    th, td { padding:10px 8px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+    th { color:var(--muted); font-weight:600; }
+    form { margin:0; }
+    .row { display:grid; grid-template-columns:1fr 1fr 140px auto; gap:10px; align-items:end; }
+    label { display:block; color:var(--muted); font-size:13px; margin-bottom:6px; }
+    input, select { width:100%; height:36px; border:1px solid var(--line); border-radius:6px; padding:0 10px; }
+    button { min-height:34px; border:1px solid var(--line); border-radius:6px; background:#eef3fb; color:var(--text); padding:0 10px; cursor:pointer; }
+    button.primary { background:var(--blue); border-color:var(--blue); color:white; }
+    button.danger { background:#fee2e2; border-color:#fecaca; color:var(--red); }
+    .actions { display:flex; flex-wrap:wrap; gap:8px; }
+    .badge { display:inline-block; border-radius:999px; padding:3px 8px; background:#e2e8f0; color:#334155; font-size:12px; }
+    .badge.admin { background:#dbeafe; color:#1d4ed8; }
+    .badge.enabled { background:#dcfce7; color:var(--green); }
+    .badge.disabled { background:#fee2e2; color:var(--red); }
+    .error { color:var(--red); min-height:22px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>用户管理</h1>
+    <form method="post" action="/logout"><button type="submit">退出登录</button></form>
+  </header>
+  <main>
+    <section>
+      <h2>新增用户</h2>
+      <form method="post" action="/admin/users" class="row">
+        <div>
+          <label for="username">用户名</label>
+          <input id="username" name="username" required>
+        </div>
+        <div>
+          <label for="password">初始密码</label>
+          <input id="password" name="password" type="password" required>
+        </div>
+        <div>
+          <label for="role">角色</label>
+          <select id="role" name="role">
+            <option value="user">普通用户</option>
+            <option value="admin">管理员</option>
+          </select>
+        </div>
+        <button class="primary" type="submit">创建</button>
+      </form>
+      <div class="error">{{ error }}</div>
+    </section>
+
+    <section>
+      <h2>现有用户</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>用户名</th>
+            <th>角色</th>
+            <th>状态</th>
+            <th>最近登录</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for user in users %}
+          <tr>
+            <td>{{ user.username }}</td>
+            <td><span class="badge {{ user.role }}">{{ "管理员" if user.role == "admin" else "普通用户" }}</span></td>
+            <td><span class="badge {{ "enabled" if user.enabled else "disabled" }}">{{ "启用" if user.enabled else "禁用" }}</span></td>
+            <td>{{ user.last_login_at or "未登录" }}</td>
+            <td>
+              <div class="actions">
+                <form method="post" action="/admin/users/{{ user.id }}/password">
+                  <input name="password" type="password" placeholder="新密码" required>
+                  <button type="submit">改密码</button>
+                </form>
+                <form method="post" action="/admin/users/{{ user.id }}/toggle">
+                  <button type="submit">{{ "禁用" if user.enabled else "启用" }}</button>
+                </form>
+                <form method="post" action="/admin/users/{{ user.id }}/delete">
+                  <button class="danger" type="submit">删除</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>

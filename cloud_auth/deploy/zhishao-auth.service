@@ -1,0 +1,19 @@
+[Unit]
+Description=ZhiShao Cloud Auth Gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/zhishao-auth
+Environment=ZHISHAO_AUTH_DB=/opt/zhishao-auth/zhishao_auth.db
+Environment=ZHISHAO_AUTH_SECRET=change-this-to-a-long-random-secret
+Environment=ZHISHAO_AUTH_HOST=127.0.0.1
+Environment=ZHISHAO_AUTH_PORT=9100
+ExecStart=/opt/zhishao-auth/.venv/bin/python -m cloud_auth.app serve
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
