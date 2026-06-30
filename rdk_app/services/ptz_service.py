@@ -2,7 +2,22 @@ import time
 
 import numpy as np
 
-from settings import CAMERA_HEIGHT, CAMERA_WIDTH
+from settings import (
+    CAMERA_HEIGHT,
+    CAMERA_WIDTH,
+    PTZ_COMMAND_INTERVAL,
+    PTZ_DEADZONE_X,
+    PTZ_DEADZONE_Y,
+    PTZ_EDGE_FAST_RATIO,
+    PTZ_EDGE_GAIN_BOOST,
+    PTZ_KP_X,
+    PTZ_KP_Y,
+    PTZ_LOST_PREDICT_SECONDS,
+    PTZ_MAX_STEP_X,
+    PTZ_MAX_STEP_Y,
+    PTZ_MIN_STEP_X,
+    PTZ_MIN_STEP_Y,
+)
 from core.ptz_controller import ptz
 
 
@@ -24,6 +39,40 @@ class PTZService:
         self.h = np.array([[1, 0, 0, 0], [0, 1, 0, 0]], dtype=np.float32)
         self.q = np.eye(4, dtype=np.float32) * 0.05
         self.r = np.eye(2, dtype=np.float32) * 2
+
+    def _axis_delta(self, error, deadzone, kp, min_step, max_step, frame_size):
+        if abs(error) <= deadzone:
+            return 0.0
+        boost = PTZ_EDGE_GAIN_BOOST if abs(error) >= frame_size * PTZ_EDGE_FAST_RATIO else 1.0
+        delta = error * kp * boost
+        delta = max(-max_step, min(max_step, delta))
+        if abs(delta) < min_step:
+            return 0.0
+        return delta
+
+    def _apply_follow_errors(self, error_x, error_y, x_gain=1.0, y_gain=1.0):
+        moved = False
+        delta_x = self._axis_delta(
+            error_x,
+            PTZ_DEADZONE_X,
+            PTZ_KP_X * x_gain,
+            PTZ_MIN_STEP_X,
+            PTZ_MAX_STEP_X,
+            CAMERA_WIDTH,
+        )
+        delta_y = self._axis_delta(
+            error_y,
+            PTZ_DEADZONE_Y,
+            PTZ_KP_Y * y_gain,
+            PTZ_MIN_STEP_Y,
+            PTZ_MAX_STEP_Y,
+            CAMERA_HEIGHT,
+        )
+        if delta_x:
+            moved = ptz.set_pan(ptz.current_pan - delta_x) or moved
+        if delta_y:
+            moved = ptz.set_tilt(ptz.current_tilt + delta_y) or moved
+        return moved
 
     def set_follow_enabled(self, enabled):
         self.follow_enabled = bool(enabled)
@@ -107,14 +156,9 @@ class PTZService:
             self._update(target["cx"], target["cy"])
         error_x = float(self.x[0, 0]) - CAMERA_WIDTH / 2
         error_y = float(self.x[1, 0]) - CAMERA_HEIGHT / 2
-        if now - self.last_cmd < 0.12:
+        if now - self.last_cmd < PTZ_COMMAND_INTERVAL:
             return
-        moved = False
-        if abs(error_x) > CAMERA_WIDTH * 0.12:
-            kp = 0.014 * (1.0 + abs(error_x) / (CAMERA_WIDTH / 2))
-            moved = ptz.set_pan(ptz.current_pan - error_x * kp) or moved
-        if abs(error_y) > CAMERA_HEIGHT * 0.12:
-            moved = ptz.set_tilt(ptz.current_tilt + error_y * 0.010) or moved
+        moved = self._apply_follow_errors(error_x, error_y)
         if moved:
             self.last_cmd = now
             self.runtime.update(ptz_mode="自动跟随")
@@ -126,18 +170,14 @@ class PTZService:
         if now < self.manual_hold_until:
             self.runtime.update(ptz_mode="手动微调保持")
             return
-        if self.kf_enabled and now - self.last_seen <= 2.0:
+        if self.kf_enabled and now - self.last_seen <= PTZ_LOST_PREDICT_SECONDS:
             dt = max(now - self.last_calc, 0.001)
             self.last_calc = now
             self._predict(dt)
-            if now - self.last_cmd > 0.15:
+            if now - self.last_cmd > PTZ_COMMAND_INTERVAL:
                 error_x = float(self.x[0, 0]) - CAMERA_WIDTH / 2
                 error_y = float(self.x[1, 0]) - CAMERA_HEIGHT / 2
-                moved = False
-                if abs(error_x) > CAMERA_WIDTH * 0.08:
-                    moved = ptz.set_pan(ptz.current_pan - error_x * 0.010) or moved
-                if abs(error_y) > CAMERA_HEIGHT * 0.08:
-                    moved = ptz.set_tilt(ptz.current_tilt + error_y * 0.008) or moved
+                moved = self._apply_follow_errors(error_x, error_y, x_gain=0.85, y_gain=0.80)
                 if moved:
                     self.last_cmd = now
             self.runtime.update(ptz_mode="短时外推")

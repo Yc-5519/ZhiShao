@@ -1,0 +1,167 @@
+import os
+import sys
+import time
+import unittest
+from types import SimpleNamespace
+
+import numpy as np
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+
+class FakeSerialConn:
+    is_open = True
+
+    def write(self, _data):
+        return None
+
+    def close(self):
+        self.is_open = False
+
+
+sys.modules.setdefault("serial", SimpleNamespace(Serial=lambda *args, **kwargs: FakeSerialConn()))
+
+from services.target_tracker import TargetTracker
+import services.ptz_service as ptz_service
+from services.ptz_service import PTZService
+
+
+def target(cx, cy=240, area=16000, track_id=None, appearance=None):
+    appearance = np.array(appearance or [1.0, 0.0, 0.0], dtype=np.float32)
+    appearance = appearance / max(float(np.linalg.norm(appearance)), 1e-6)
+    width = area ** 0.5
+    box = (cx - width / 2, cy - width / 2, cx + width / 2, cy + width / 2)
+    data = {
+        "cx": cx,
+        "cy": cy,
+        "area": area,
+        "box": box,
+        "appearance": appearance,
+        "kpts": np.zeros((17, 3), dtype=np.float32),
+    }
+    if track_id is not None:
+        data["track_id"] = track_id
+    return data
+
+
+class TargetTrackerFollowTests(unittest.TestCase):
+    def test_lock_reacquires_same_person_after_short_disappearance(self):
+        tracker = TargetTracker()
+        first = target(320, appearance=[0.9, 0.1, 0.0])
+        active, _reason = tracker.choose([first])
+        self.assertIsNotNone(active)
+        ok, _reply = tracker.lock_current()
+        self.assertTrue(ok)
+
+        tracker.tracks = {}
+        tracker.last_locked_seen = time.time() - 3.0
+        candidate = target(340, appearance=[0.88, 0.12, 0.0])
+        active, _reason = tracker.choose([candidate])
+
+        self.assertIsNotNone(active)
+        self.assertEqual(tracker.lock_state, "短时重识别锁定")
+        self.assertEqual(tracker.ptz_follow_target.get("track_id"), tracker.locked_track_id)
+
+    def test_competition_mode_does_not_follow_unlocked_person(self):
+        tracker = TargetTracker()
+        tracker.require_lock_for_follow = True
+
+        active, reason = tracker.choose([target(360)])
+
+        self.assertIsNotNone(active)
+        self.assertIsNone(tracker.ptz_follow_target)
+        self.assertIn("锁定", reason)
+
+
+class FakePTZ:
+    def __init__(self):
+        self.current_pan = 90
+        self.current_tilt = 90
+        self.pan_commands = []
+        self.tilt_commands = []
+
+    def ensure_connected(self):
+        return True
+
+    def is_open(self):
+        return True
+
+    def set_pan(self, angle):
+        self.current_pan = int(angle)
+        self.pan_commands.append(self.current_pan)
+        return True
+
+    def set_tilt(self, angle):
+        self.current_tilt = int(angle)
+        self.tilt_commands.append(self.current_tilt)
+        return True
+
+    def center(self):
+        self.current_pan = 90
+        self.current_tilt = 90
+        return True
+
+
+class RuntimeStub:
+    def __init__(self):
+        self.values = {}
+
+    def update(self, **kwargs):
+        self.values.update(kwargs)
+
+
+class PTZFollowControlTests(unittest.TestCase):
+    def setUp(self):
+        self.fake_ptz = FakePTZ()
+        self.original_ptz = ptz_service.ptz
+        self.original_values = {
+            "PTZ_DEADZONE_X": ptz_service.PTZ_DEADZONE_X,
+            "PTZ_DEADZONE_Y": ptz_service.PTZ_DEADZONE_Y,
+            "PTZ_KP_X": ptz_service.PTZ_KP_X,
+            "PTZ_KP_Y": ptz_service.PTZ_KP_Y,
+        }
+        self.original_optional = {
+            name: getattr(ptz_service, name, None)
+            for name in ("PTZ_MAX_STEP_X", "PTZ_MAX_STEP_Y", "PTZ_MIN_STEP_X", "PTZ_MIN_STEP_Y", "PTZ_COMMAND_INTERVAL")
+        }
+        ptz_service.ptz = self.fake_ptz
+        ptz_service.PTZ_DEADZONE_X = 40
+        ptz_service.PTZ_DEADZONE_Y = 40
+        ptz_service.PTZ_KP_X = 0.05
+        ptz_service.PTZ_KP_Y = 0.04
+        ptz_service.PTZ_MAX_STEP_X = 5
+        ptz_service.PTZ_MAX_STEP_Y = 4
+        ptz_service.PTZ_MIN_STEP_X = 1
+        ptz_service.PTZ_MIN_STEP_Y = 1
+        ptz_service.PTZ_COMMAND_INTERVAL = 0.0
+
+    def tearDown(self):
+        ptz_service.ptz = self.original_ptz
+        for name, value in self.original_values.items():
+            setattr(ptz_service, name, value)
+        for name, value in self.original_optional.items():
+            if value is None and hasattr(ptz_service, name):
+                delattr(ptz_service, name)
+            elif value is not None:
+                setattr(ptz_service, name, value)
+
+    def test_follow_uses_configured_deadzone_and_gain(self):
+        service = PTZService(RuntimeStub())
+
+        service.follow(target(370))
+
+        self.assertTrue(self.fake_ptz.pan_commands)
+        self.assertEqual(self.fake_ptz.pan_commands[-1], 87)
+
+    def test_follow_caps_large_single_step(self):
+        service = PTZService(RuntimeStub())
+
+        service.follow(target(620))
+
+        self.assertEqual(self.fake_ptz.pan_commands[-1], 85)
+
+
+if __name__ == "__main__":
+    unittest.main()

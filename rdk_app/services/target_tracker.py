@@ -2,7 +2,7 @@ import time
 
 import numpy as np
 
-from settings import CAMERA_WIDTH
+from settings import CAMERA_WIDTH, PTZ_REQUIRE_LOCK_FOR_FOLLOW, TARGET_LOCK_REACQUIRE_SECONDS
 
 
 class TargetTracker:
@@ -22,6 +22,8 @@ class TargetTracker:
         self.active_target = None
         self.ptz_follow_target = None
         self.follow_reason = "暂无目标"
+        self.lock_reacquire_seconds = TARGET_LOCK_REACQUIRE_SECONDS
+        self.require_lock_for_follow = PTZ_REQUIRE_LOCK_FOR_FOLLOW
 
     def _appearance_similarity(self, left, right):
         if left is None or right is None:
@@ -129,15 +131,23 @@ class TargetTracker:
             for target in targets:
                 if active_id is not None and target.get("track_id") == active_id:
                     self.active_target = target
-                    self.ptz_follow_target = target
+                    self.ptz_follow_target = None if self.require_lock_for_follow else target
                     self.lock_state = "未锁定"
-                    self.follow_reason = f"未锁定：延续上一帧可信人体轨迹 ID={active_id}"
+                    self.follow_reason = (
+                        f"比赛模式：已识别可信人体 ID={active_id}，请先锁定当前人物再驱动云台"
+                        if self.require_lock_for_follow
+                        else f"未锁定：延续上一帧可信人体轨迹 ID={active_id}"
+                    )
                     return target, self.follow_reason
             active = max(targets, key=lambda t: t["area"])
             self.active_target = active
-            self.ptz_follow_target = active
+            self.ptz_follow_target = None if self.require_lock_for_follow else active
             self.lock_state = "未锁定"
-            self.follow_reason = "未锁定：默认跟随画面中最大的可信人体"
+            self.follow_reason = (
+                "比赛模式：已识别可信人体，请先发送“锁定当前人物”再驱动云台"
+                if self.require_lock_for_follow
+                else "未锁定：默认跟随画面中最大的可信人体"
+            )
             return active, self.follow_reason
 
         for target in targets:
@@ -178,7 +188,7 @@ class TargetTracker:
         if not self.last_locked_snapshot:
             return False
         elapsed = time.time() - self.last_locked_seen
-        if elapsed > 2.0:
+        if elapsed > self.lock_reacquire_seconds:
             return False
         dist = np.sqrt(
             (candidate["cx"] - self.last_locked_snapshot["cx"]) ** 2
@@ -187,9 +197,9 @@ class TargetTracker:
         area_ratio = abs(np.log(max(float(candidate["area"]), 1.0) / max(float(self.last_locked_snapshot["area"]), 1.0)))
         cloth = self._appearance_similarity(self.last_locked_snapshot.get("appearance"), candidate.get("appearance"))
         overlap = self._iou(self.last_locked_snapshot.get("box"), candidate.get("box"))
-        if overlap >= 0.18 and dist < CAMERA_WIDTH * 0.28 and cloth >= 0.65:
+        if overlap >= 0.18 and dist < CAMERA_WIDTH * 0.32 and cloth >= 0.65:
             return True
-        return bool(cloth >= 0.86 and dist < CAMERA_WIDTH * 0.24 and area_ratio < 0.35)
+        return bool(cloth >= 0.78 and dist < CAMERA_WIDTH * 0.35 and area_ratio < 0.50)
 
     def lock_current(self, name="当前人物"):
         if not self.active_target:
