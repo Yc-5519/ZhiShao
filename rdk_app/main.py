@@ -8,6 +8,7 @@ from brain.brain_client import brain
 from notify.feishu_bot import bot
 from services.app_service import AppService
 from services.feishu_service import FeishuService
+from services.incident_monitor import IncidentMonitorService
 from services.ptz_service import PTZService
 from services.report_service import ReportService
 from services.runtime_state import FrameHub, RuntimeState
@@ -73,7 +74,8 @@ def build_app():
     )
     web = WebDashboard(app_service)
     feishu = FeishuService(app_service, bot)
-    return store, runtime, frame_hub, ptz_service, report_service, vision, app_service, web, feishu
+    incident_monitor = IncidentMonitorService(store, runtime, frame_hub, brain, bot)
+    return store, runtime, frame_hub, ptz_service, report_service, vision, app_service, web, feishu, incident_monitor
 
 
 if __name__ == "__main__":
@@ -84,16 +86,18 @@ if __name__ == "__main__":
     if not acquire_single_instance_lock():
         sys.exit(0)
 
-    store, runtime, frame_hub, ptz_service, report_service, vision, app_service, web, feishu = build_app()
+    store, runtime, frame_hub, ptz_service, report_service, vision, app_service, web, feishu, incident_monitor = build_app()
     try:
         report_service.start_timer()
         web.start()
         feishu.start()
         vision.start()
+        incident_monitor.start()
         print("[OK] [系统] 飞书、Web、视觉、日报服务已全部启动。")
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
         print("\n[STOP] 收到终止指令，智哨安全下线。")
+        incident_monitor.stop()
         vision.stop()
         ptz_service.center()

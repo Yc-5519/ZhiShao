@@ -135,6 +135,19 @@ CAMERA_REOPEN_SECONDS = _env_float("ZHISHAO_CAMERA_REOPEN_SECONDS", 2.0)
 
 
 # =========================================================================
+# Incident monitor. These values only control notification timing.
+# =========================================================================
+INCIDENT_MONITOR_ENABLED = _env_bool("ZHISHAO_INCIDENT_MONITOR_ENABLED", True)
+INCIDENT_CHECK_INTERVAL_SECONDS = _env_float("ZHISHAO_INCIDENT_CHECK_INTERVAL_SECONDS", 10.0)
+INCIDENT_ALERT_COOLDOWN_SECONDS = _env_float("ZHISHAO_INCIDENT_ALERT_COOLDOWN_SECONDS", 600.0)
+INCIDENT_CAMERA_BAD_SECONDS = _env_float("ZHISHAO_INCIDENT_CAMERA_BAD_SECONDS", 10.0)
+INCIDENT_FRAME_STALE_SECONDS = _env_float("ZHISHAO_INCIDENT_FRAME_STALE_SECONDS", 20.0)
+INCIDENT_BRAIN_BAD_SECONDS = _env_float("ZHISHAO_INCIDENT_BRAIN_BAD_SECONDS", 30.0)
+INCIDENT_PUBLIC_BAD_SECONDS = _env_float("ZHISHAO_INCIDENT_PUBLIC_BAD_SECONDS", 60.0)
+INCIDENT_NO_PERSON_SECONDS = _env_float("ZHISHAO_INCIDENT_NO_PERSON_SECONDS", 300.0)
+
+
+# =========================================================================
 # 历史兼容配置：当前人物锁定默认不再使用人脸识别
 # =========================================================================
 FACE_MODEL_DIR = os.path.join(BASE_DIR, "models")
