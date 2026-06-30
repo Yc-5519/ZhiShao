@@ -1,6 +1,6 @@
 ﻿# RDK 导入与 Windows VLM 服务分析
 
-更新时间：2026-06-16
+更新时间：2026-06-27
 
 ## 当前导入状态
 
@@ -47,8 +47,6 @@ notify/
 services/
 tests/
 .env.example
-yolov8n-pose.bin
-logs/
 ```
 
 作用判断：这是 RDK X5 上运行的主项目，负责摄像头、云台、姿态/摔倒检测、Web 看护页面、飞书事件和日报服务。
@@ -75,15 +73,16 @@ http://<Windows_PC_IP>:9000/privacy_check
 
 Windows 导入的 `vlm_service_cascade.py` 正好提供这些接口，因此它应作为“Windows 脑服务”保留，而不是塞进 RDK 主程序内部。
 
-## 推荐统一项目结构
+## 当前统一项目结构
 
-建议后续整理成：
+当前已经整理成：
 
 ```text
 rdk_app/             # 来自 _import_rdk/ZhiShao_V2 的 RDK 主程序
 windows_brain/       # 来自 _import_windows/vlm_service_cascade.py 的 Windows VLM 服务
 docs/
-scripts/
+work/
+outputs/
 ```
 
 其中：
@@ -118,26 +117,17 @@ logs/
 
 ## 目前发现的注意点
 
-1. `settings.py` 的部分中文注释存在编码异常，`main.py` 和 `brain_client.py` UTF-8 读取正常。后续整理时需要确认是否只影响注释，避免误改运行逻辑。
-2. RDK `.env.example` 中写的是 Windows 服务使用本地 Ollama/Qwen2.5-VL，但当前 Windows 导入文件实际调用 DashScope/Qwen-VL。这是一个设计差异，需要后续确认：
-   - 保留 DashScope 云端方案；或
-   - 改成 Ollama 本地模型方案；或
-   - 做成可配置后端。
+1. `rdk_app/settings.py` 的已确认乱码文本已修复；`_import_rdk/ZhiShao_V2/settings.py` 继续作为原始导入基线保留，不直接覆盖。
+2. RDK `.env.example` 已按当前实现统一为 Windows `windows_brain/vlm_service_cascade.py` 调用 DashScope/Qwen-VL；如果后续要支持本地 Ollama，需要再做成可配置后端。
 3. RDK 主程序依赖 Linux/RDK 环境、摄像头、串口云台和 OpenCV，Windows 侧不适合完整运行主程序，只适合做静态检查和 Windows 脑服务开发。
-4. RDK 项目中包含 `.env`，我没有读取或提交其中敏感值。
+4. 当前 Git 工作区只保留 `.env.example`，没有提交 `.env`、模型文件、日志或图片等运行产物。
 
 ## 下一步建议
 
-1. 先提交当前 RDK 导入基线，但排除敏感和运行产物。
-2. 创建整理分支，例如：
-
-```powershell
-git checkout -b codex/merge-rdk-windows-layout
-```
-
-3. 在分支内把结构整理为 `rdk_app/` 与 `windows_brain/`。
-4. 编写启动说明：
+1. 继续把 `_import_rdk/` 和 `_import_windows/` 作为导入基线保留。
+2. 后续功能修改优先在 `rdk_app/` 与 `windows_brain/` 中完成。
+3. 启动说明已初步记录：
    - Windows 启动 `windows_brain/vlm_service_cascade.py`
    - RDK 设置 `.env` 指向 Windows IP
    - RDK 启动 `rdk_app/main.py`
-5. 在 RDK 上验证后，再考虑低风险优化。
+4. 在 RDK 上验证后，再考虑低风险优化。

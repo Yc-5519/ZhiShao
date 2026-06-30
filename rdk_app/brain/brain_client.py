@@ -259,7 +259,7 @@ class BrainClient:
                 "risk_level": "unknown",
                 "reason": f"隐私复核服务不可用：{e}。已按保护策略拒绝开启真实画面。",
                 "confidence": 0.0,
-                "evidence": ["RDK 无法连接 Windows 9000 隐私复核服务"],
+                "evidence": [f"RDK 无法连接隐私复核服务：{self.privacy_url}"],
                 "block_type": "service_unavailable",
             }
         except Exception as e:
