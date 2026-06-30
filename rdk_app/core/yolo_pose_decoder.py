@@ -5,7 +5,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
-# 🚀 斩断乱麻：只使用 Python 标准库和基础矩阵库，彻底免疫外部依赖
+# 斩断乱麻：只使用 Python 标准库和基础矩阵库，彻底免疫外部依赖
 from hobot_dnn import pyeasy_dnn as dnn
 import numpy as np
 import cv2
@@ -146,7 +146,7 @@ class UltralyticsYOLOPose:
 
         t0 = time.time()
         self.models = dnn.load(self.cfg.model_path)
-        print(f"🚀 [自研后处理] 原生 BPU 模型驱动装载完毕，耗时: {(time.time() - t0)*1000:.1f}ms")
+        print(f"[OK] [自研后处理] 原生 BPU 模型驱动装载完毕，耗时: {(time.time() - t0)*1000:.1f}ms")
 
         self.model_obj = self.models[0]
         input_shape = self.model_obj.inputs[0].properties.shape

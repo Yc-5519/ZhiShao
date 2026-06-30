@@ -35,7 +35,7 @@ class FeishuService:
     def start(self):
         if not FEISHU_APP_ID or not FEISHU_APP_SECRET:
             self.app_service.runtime.update(feishu_ok=False)
-            print("?? [飞书组件] 未配置 FEISHU_APP_ID / FEISHU_APP_SECRET，飞书对话服务未启动。")
+            print("[WARN] [飞书组件] 未配置 FEISHU_APP_ID / FEISHU_APP_SECRET，飞书对话服务未启动。")
             return
         handler = (
             lark.EventDispatcherHandler.builder("", "")
@@ -45,7 +45,7 @@ class FeishuService:
         )
         cli = lark.ws.Client(FEISHU_APP_ID, FEISHU_APP_SECRET, event_handler=handler, log_level=lark.LogLevel.INFO)
         self.app_service.runtime.update(feishu_ok=True)
-        print("? [飞书组件] WebSocket 监听服务已就绪！")
+        print("[OK] [飞书组件] WebSocket 监听服务已就绪。")
         threading.Thread(target=cli.start, daemon=True).start()
 
     def _control_card(self):
@@ -156,7 +156,7 @@ class FeishuService:
         ok, reply = self._execute_card_command(command, message_id)
         toast_type = "success" if ok else "warning"
         toast = short_reply(reply)
-        print(f"? [飞书卡片] {label} -> {command}: {toast}")
+        print(f"[INFO] [飞书卡片] {label} -> {command}: {toast}")
         return P2CardActionTriggerResponse(card_response_payload(toast, toast_type, self._control_card()))
 
     def _text(self, data):
@@ -177,7 +177,7 @@ class FeishuService:
         question = self._text(data)
         if not question:
             return
-        print(f"\n? [飞书管家] 收到用户指令: {question}")
+        print(f"\n[INFO] [飞书管家] 收到用户指令: {question}")
 
         if question in {"\u83dc\u5355", "\u4e3b\u83dc\u5355", "\u63a7\u5236\u9762\u677f", "\u64cd\u4f5c\u9762\u677f", "\u6309\u94ae", "\u5361\u7247", "\u63a7\u5236\u5361\u7247", "\u4ea4\u4e92\u5361\u7247"}:
             self._reply_control_card(msg_id)
@@ -216,7 +216,7 @@ class FeishuService:
     def _routes(self):
         return [
             (["说明书", "使用说明", "产品说明"], lambda _q: self.app_service.manual()),
-            (["帮助", "指令"], lambda _q: "发送“菜单”或“控制面板”即可打开可点击按钮卡片；也可以继续直接输入文字指令。"),
+            (["帮助", "指令"], lambda _q: self.app_service.quick_help()),
             (["实时监控", "监控链接", "打开监控", "看护画面"], lambda _q: self._monitor_link()),
             (
                 ["查看当前状态", "当前状态", "现在状态", "目前状态", "设备当前状态", "看护状态", "今天状态"],
@@ -269,7 +269,7 @@ class FeishuService:
         ]
         if image_key:
             blocks.append([{"tag": "img", "image_key": image_key}])
-        resp = self.bot.reply_rich_post(msg_id, "? 智哨管家回复", blocks)
+        resp = self.bot.reply_rich_post(msg_id, "智哨管家回复", blocks)
         if not resp or resp.get("code", 0) != 0:
             self.bot.reply_text(msg_id, f"{answer}\n\n隐私保护：本次只展示脱敏骨架，不展示真实摄像头画面。")
 
@@ -280,16 +280,17 @@ class FeishuService:
         lan_url = state.get("lan_monitor_url") or (url if not public_url else "")
         if public_url:
             return "\n".join([
-                "公网看护页：",
+                "公网看护页（需要登录）：",
                 public_url,
                 "",
-                "公网连通性测试：",
+                "公网健康检查：",
                 f"{public_url.rstrip('/')}/health",
                 "",
                 "局域网备用入口：",
                 lan_url or "暂无地址",
                 "",
-                "页面默认展示状态卡和脱敏画面；真实画面默认关闭，开启前需要隐私复核，并会限时自动关闭。",
+                "当前架构：RDK X5 本地看护 + 云服务器公网入口 + 云端 VLM 大脑。",
+                "页面默认展示状态卡和脱敏骨架；真实画面默认关闭，开启前需要隐私复核，并会限时自动关闭。",
             ])
         health_url = f"{url.rstrip('/')}/health" if url else ""
         return "\n".join([
@@ -300,8 +301,8 @@ class FeishuService:
             health_url or "暂无地址",
             "",
             "手机能打开的前提：手机和 RDK 在同一 Wi-Fi/热点网络内。",
-            "如果子女在外地或使用手机流量，这个内网地址通常打不开，需要后续配置 HTTPS 中转或内网穿透。",
-            "页面默认展示状态卡和脱敏画面；真实画面默认关闭，开启前需要隐私复核，并会限时自动关闭。",
+            "如果子女在外地或使用手机流量，这个内网地址通常打不开，需要使用公网入口。",
+            "页面默认展示状态卡和脱敏骨架；真实画面默认关闭，开启前需要隐私复核，并会限时自动关闭。",
         ])
 
     def _command(self, command):

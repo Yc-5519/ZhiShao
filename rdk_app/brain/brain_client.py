@@ -26,18 +26,18 @@ class BrainClient:
         # 天气只在用户明确询问时懒加载，避免普通看护问答主动夹带天气。
         self.real_weather = "暂无气象数据"
         
-        # 🚀 核心新增：短期记忆体（滑动窗口）
+        # 核心新增：短期记忆体（滑动窗口）
         self.chat_history = [] 
         self.MAX_HISTORY = 3  # 只记住最近 3 轮对话，防止 Prompt 太长导致云端拒绝或变傻
 
     def _load_care_location(self):
         if not USE_IP_GEOLOCATION:
-            print(f"📍 [看护地点] 已使用固定看护地点: {CARE_LOCATION}")
+            print(f"[INFO] [看护地点] 已使用固定看护地点: {CARE_LOCATION}")
             return CARE_CITY, CARE_LOCATION
         return self._fetch_local_geo_info()
 
     def _fetch_local_geo_info(self):
-        print("🌍 [边缘阵地] 正在探测本机所处的真实物理坐标...")
+        print("[INFO] [边缘阵地] 正在探测本机所处的真实物理坐标...")
         try:
             res = requests.get("http://ip-api.com/json/?lang=zh-CN", timeout=5)
             if res.status_code == 200:
@@ -45,10 +45,10 @@ class BrainClient:
                 if data.get("status") == "success":
                     city = data.get('city', '')
                     loc = f"{data.get('country', '')} {data.get('regionName', '')} {city}"
-                    print(f"📍 [边缘阵地] 嗅探成功！本机真实坐标已锚定: {loc}")
+                    print(f"[OK] [边缘阵地] 嗅探成功！本机真实坐标已锚定: {loc}")
                     return city, loc
         except Exception as e:
-            print(f"⚠️ [边缘阵地] 网络定位失败...")
+            print("[WARN] [边缘阵地] 网络定位失败。")
         return "Unknown", "当地城市"
 
     def _weather_day_index(self, question):
@@ -97,15 +97,15 @@ class BrainClient:
                         f"{day.get('mintempC', '?')}~{day.get('maxtempC', '?')}℃，"
                         f"平均 {day.get('avgtempC', '?')}℃，降水概率约 {chance}%"
                     )
-                    print(f"🌤️ [气象雷达] 成功获取天气: {weather_info}")
+                    print(f"[OK] [气象雷达] 成功获取天气: {weather_info}")
                     return weather_info
         except Exception as e:
-            print(f"⚠️ [气象雷达] 天气查询失败: {e}")
+            print(f"[WARN] [气象雷达] 天气查询失败: {e}")
         try:
             res = requests.get(f"https://wttr.in/{city}?format=%C+%t", timeout=3)
             if res.status_code == 200:
                 weather_info = f"{city}当前天气：{res.text.strip()}"
-                print(f"🌤️ [气象雷达] 成功获取实时天气: {weather_info}")
+                print(f"[OK] [气象雷达] 成功获取实时天气: {weather_info}")
                 return weather_info
         except Exception:
             pass
@@ -136,7 +136,7 @@ class BrainClient:
                 f"外部气象数据：{self.real_weather}。"
             )
         
-        # 🚀 核心逻辑：组装历史对话字符串
+        # 核心逻辑：组装历史对话字符串
         history_str = "无"
         if self.chat_history:
             history_str = "\n".join([f"主人: {q}\n管家: {a}" for q, a in self.chat_history])
@@ -181,14 +181,14 @@ class BrainClient:
 
         try:
             if needs_weather:
-                print("📡 [云端通信] 正在将携带【天气】与【记忆】的指令发送至大脑...")
+                print("[INFO] [云端通信] 正在将携带【天气】与【记忆】的指令发送至大脑...")
             else:
-                print("📡 [云端通信] 正在将携带【记忆】的指令发送至大脑...")
+                print("[INFO] [云端通信] 正在将携带【记忆】的指令发送至大脑...")
             response = requests.post(self.ask_url, json=payload, timeout=20)
             if response.status_code == 200:
                 res_data = response.json()
                 
-                # 🚀 核心闭环：如果大模型成功回答了，就把这一轮对话存入记忆记事本！
+                # 核心闭环：如果大模型成功回答了，就把这一轮对话存入记忆记事本。
                 answer = res_data.get("answer", "")
                 if answer:
                     self.chat_history.append((question, answer))
@@ -199,7 +199,7 @@ class BrainClient:
                 return res_data
                 
         except requests.exceptions.RequestException as e:
-            print(f"❌ 呼叫大脑失败: {e}")
+            print(f"[ERROR] 呼叫大脑失败: {e}")
         if needs_weather:
             return {"answer": self._local_weather_answer(), "need_image": False}
         return None
@@ -253,7 +253,7 @@ class BrainClient:
                 "block_type": "service_unavailable",
             }
         except requests.exceptions.RequestException as e:
-            print(f"⚠️ [隐私复核] 调用云端大脑失败: {e}")
+            print(f"[WARN] [隐私复核] 调用云端大脑失败: {e}")
             return {
                 "safe_to_show": False,
                 "risk_level": "unknown",
@@ -263,7 +263,7 @@ class BrainClient:
                 "block_type": "service_unavailable",
             }
         except Exception as e:
-            print(f"⚠️ [隐私复核] 处理隐私复核结果异常: {e}")
+            print(f"[WARN] [隐私复核] 处理隐私复核结果异常: {e}")
         return {
             "safe_to_show": False,
             "risk_level": "unknown",

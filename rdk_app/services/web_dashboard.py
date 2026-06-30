@@ -76,7 +76,7 @@ class WebDashboard:
                         request.headers.get("User-Agent", ""),
                     )
                 except Exception as exc:
-                    print(f"⚠️ [访问日志] 记录失败: {exc}")
+                    print(f"[WARN] [访问日志] 记录失败: {exc}")
             return response
 
         @self.flask.route("/video/raw")
@@ -341,7 +341,7 @@ class WebDashboard:
 
     def start(self):
         def worker():
-            print(f"📺 [产品看板] Web 安心看护页已启动: {get_monitor_url(self.port)}")
+            print(f"[OK] [产品看板] Web 安心看护页已启动: {get_monitor_url(self.port)}")
             self.flask.run(host=self.host, port=self.port, threaded=True, use_reloader=False, request_handler=QuietRequestHandler)
 
         threading.Thread(target=worker, daemon=True).start()

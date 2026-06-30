@@ -117,7 +117,7 @@ class VisionWorker:
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         ok = bool(self.cap.isOpened())
         self.runtime.update(camera_ok=ok, camera_message=f"已打开索引 {CAMERA_INDEX}" if ok else f"无法打开索引 {CAMERA_INDEX}")
-        print(f"{'📷' if ok else '⚠️'} [摄像头] {self.runtime.snapshot()['camera_message']}")
+        print(f"{'[OK]' if ok else '[WARN]'} [摄像头] {self.runtime.snapshot()['camera_message']}")
         return ok
 
     def start(self):

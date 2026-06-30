@@ -31,10 +31,10 @@ def acquire_single_instance_lock():
         _MAIN_LOCK_HANDLE.flush()
         return True
     except BlockingIOError:
-        print("⚠️ [系统] 检测到智哨主程序已在运行，本次启动已退出，避免飞书重复回复。")
+        print("[WARN] [系统] 检测到智哨主程序已在运行，本次启动已退出，避免飞书重复回复。")
         return False
     except Exception as e:
-        print(f"⚠️ [系统] 单实例锁检查失败：{e}。为避免重复回复，本次启动已退出。")
+        print(f"[WARN] [系统] 单实例锁检查失败：{e}。为避免重复回复，本次启动已退出。")
         return False
 
 
@@ -50,7 +50,7 @@ def send_fall_alert(bot_client, store):
         )
         bot_client.send_webhook("智哨安心提醒", text)
         store.add_metrics(alerts_sent_count=1)
-        print("📢 [飞书告警] 安心提醒已推送。")
+        print("[INFO] [飞书告警] 安心提醒已推送。")
 
     return _send
 
@@ -78,7 +78,7 @@ def build_app():
 
 if __name__ == "__main__":
     print("==============================================================")
-    print("🚀  [智哨 ZhiShao V3 · 有边界安心看护版] 主程序启动")
+    print("[START] [智哨 ZhiShao V3 · 有边界安心看护版] 主程序启动")
     print("==============================================================")
 
     if not acquire_single_instance_lock():
@@ -90,10 +90,10 @@ if __name__ == "__main__":
         web.start()
         feishu.start()
         vision.start()
-        print("✅ [系统] 飞书、Web、视觉、日报服务已全部启动。")
+        print("[OK] [系统] 飞书、Web、视觉、日报服务已全部启动。")
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        print("\n👋 收到终止指令，智哨安全下线。")
+        print("\n[STOP] 收到终止指令，智哨安全下线。")
         vision.stop()
         ptz_service.center()

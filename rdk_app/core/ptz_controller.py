@@ -23,12 +23,12 @@ class PTZController:
     def connect(self):
         try:
             self.serial_conn = serial.Serial(self.port, self.baudrate, timeout=0.5)
-            print(f"? [底层驱动] 云台串口连接成功: {self.port} @ {self.baudrate}")
+            print(f"[OK] [底层驱动] 云台串口连接成功: {self.port} @ {self.baudrate}")
             self.center()
             return True
         except Exception as e:
             self.serial_conn = None
-            print(f"? [底层驱动] 串口连接失败: {e}")
+            print(f"[WARN] [底层驱动] 串口连接失败: {e}")
             return False
 
     def is_open(self):
@@ -47,7 +47,7 @@ class PTZController:
                 servo_id, angle = self.cmd_queue.get(timeout=0.1)
                 
                 if not self.ensure_connected():
-                    print(f"?? [底层驱动] 云台串口不可用，未发送 {servo_id}{angle}")
+                    print(f"[WARN] [底层驱动] 云台串口不可用，未发送 {servo_id}{angle}")
                     self.cmd_queue.task_done()
                     continue
                     
@@ -60,13 +60,13 @@ class PTZController:
                         # 这里的 sleep 只会阻塞当前后台线程，不会阻塞视觉主线程
                         time.sleep(0.05)
                     except Exception as e:
-                        print(f"?? [底层驱动] 发送异常: {e}")
+                        print(f"[WARN] [底层驱动] 发送异常: {e}")
                 
                 self.cmd_queue.task_done()
             except queue.Empty:
                 continue
             except Exception as e:
-                print(f"?? [底层驱动] 队列处理异常: {e}")
+                print(f"[WARN] [底层驱动] 队列处理异常: {e}")
 
     def _send_cmd(self, servo_id, angle):
         """将指令放入队列，立即返回，不阻塞调用者"""

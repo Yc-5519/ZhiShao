@@ -142,21 +142,21 @@ class ReportService:
             blocks.append([{"tag": "img", "image_key": weekly_key}])
         blocks.append([{"tag": "text", "text": f"智哨关怀建议\n{self._advice(metrics, events)}"}])
         self.bot.send_rich_post("智哨家属安心日报", blocks)
-        print("✅ [日报系统] 家属安心日报已投递。")
+        print("[OK] [日报系统] 家属安心日报已投递。")
 
     def start_timer(self):
         def worker():
-            print(f"⏰ [时钟守护] 日报定时器激活！目标时间每日 -> {REPORT_HOUR:02d}:{REPORT_MINUTE:02d}")
+            print(f"[INFO] [时钟守护] 日报定时器激活，目标时间每日 -> {REPORT_HOUR:02d}:{REPORT_MINUTE:02d}")
             while True:
                 now = time.localtime()
                 target = time.mktime((now.tm_year, now.tm_mon, now.tm_mday, REPORT_HOUR, REPORT_MINUTE, 0, 0, 0, -1))
                 curr = time.time()
                 time.sleep((target + 86400) - curr if target <= curr else target - curr)
                 try:
-                    print("\n🔔 [时钟守护] 触达定时时间点，正在生成健康日报...")
+                    print("\n[INFO] [时钟守护] 触达定时时间点，正在生成健康日报...")
                     self.send_report()
                 except Exception as exc:
-                    print(f"❌ [时钟守护] 日报发送异常: {exc}")
+                    print(f"[ERROR] [时钟守护] 日报发送异常: {exc}")
                 time.sleep(2)
 
         threading.Thread(target=worker, daemon=True).start()
