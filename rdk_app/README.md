@@ -18,12 +18,22 @@ main.py
 
 ```text
 settings.py             配置加载
-brain/brain_client.py   Windows VLM 服务客户端
-services/               Web、飞书、视觉、摔倒检测、云台、日报、状态和存储服务
+brain/brain_client.py   云端 VLM 大脑客户端
+services/               Web、飞书、视觉、摔倒检测、跟随、日报、突发通知和存储服务
 core/                   YOLO pose 解码、云台底层控制和工具
 notify/                 飞书机器人封装
 tests/                  单元测试
 ```
+
+## 云端 VLM
+
+当前主链路通过 RDK 本机地址访问云端 VLM：
+
+```text
+http://127.0.0.1:19000
+```
+
+该地址由 `zhishao-brain-tunnel` 转发到云服务器 `127.0.0.1:9000`。Windows VLM 只作为开发备用。
 
 ## 未纳入开发区的运行文件
 
@@ -41,16 +51,20 @@ yolov8n-pose.bin
 
 ## 验证建议
 
-Windows Codex 工作区只适合做静态检查和非硬件单测。摄像头、串口云台、BPU 模型和飞书长连接需要在 RDK X5 上验证。
+Windows Codex 工作区适合做静态检查和非硬件单测：
+
+```powershell
+python -m unittest discover -s rdk_app\tests
+python -m py_compile rdk_app\preflight_check.py rdk_app\settings.py
+```
+
+RDK 测试目录适合做完整验证：
 
 ```bash
+cd /home/sunrise/ZhiShao_V2_codex_test
 python3 preflight_check.py
-python3 -m py_compile main.py settings.py brain/brain_client.py
-python3 -m unittest discover -s tests
+curl http://127.0.0.1:5000/health
+curl http://127.0.0.1:19000/health
 ```
 
-如果只想在 Windows 或无硬件环境下检查脚本本身，可跳过硬件和网络项：
-
-```bash
-python3 preflight_check.py --skip-camera --skip-ptz --skip-network --no-exit-code
-```
+摄像头、串口云台、BPU 模型和飞书长连接必须在 RDK X5 上验证。

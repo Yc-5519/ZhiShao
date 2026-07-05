@@ -1,26 +1,42 @@
 # ZhiShao RDK X5 Project
 
-这是为 ZhiShao / RDK X5 项目准备的 Codex 工作区。当前工作区用于归档、分析、低风险整理和后续同步验证，不直接覆盖 RDK 或 Windows 原始项目目录。
+这是 ZhiShao / RDK X5 项目的 Codex 工作区。当前仓库用于开发、文档整理、验证和同步到 RDK 测试目录，不直接覆盖 RDK 或导入目录。
 
 ## 当前项目组成
 
-当前项目由两部分组成：
-
 ```text
-_import_rdk/ZhiShao_V2/              RDK X5 主程序导入区
-_import_windows/vlm_service_cascade.py  Windows VLM 服务导入文件
 rdk_app/                             RDK 主程序开发区
-windows_brain/                       Windows VLM 服务开发区
+windows_brain/                       VLM 服务开发备用区
 cloud_auth/                          云服务器网页登录与用户管理网关
+_import_rdk/ZhiShao_V2/              RDK 原始导入基线
+_import_windows/vlm_service_cascade.py  Windows VLM 原始导入文件
 ```
 
-### RDK 主程序
+## 主运行链路
 
-原始导入位置：
+比赛/演示主链路已经以云服务器 VLM 为主，Windows VLM 不再是必需运行组件：
 
 ```text
-_import_rdk/ZhiShao_V2
+RDK 摄像头 / 姿态检测 / 飞书 / Web 看护页
+  -> rdk_app/brain/brain_client.py
+  -> RDK 本机 127.0.0.1:19000
+  -> zhishao-brain-tunnel SSH 本地转发
+  -> 云服务器 127.0.0.1:9000 zhishao-brain
+  -> DashScope / Qwen-VL
+  -> 分析结果返回 RDK
 ```
+
+云服务器同时承担公网看护入口：
+
+```text
+公网用户
+  -> http://124.222.118.121
+  -> 云服务器 Nginx + cloud_auth 登录网关
+  -> RDK 反向隧道 127.0.0.1:15000
+  -> RDK Web 看护页
+```
+
+## RDK 主程序
 
 开发位置：
 
@@ -29,38 +45,28 @@ rdk_app/
 ```
 
 作用：
-
 - 在 RDK X5 上运行主程序。
-- 负责摄像头画面采集、姿态检测、摔倒检测、云台控制、Web 看护页、飞书交互和日报服务。
-- 通过 `brain/brain_client.py` 调用 Windows 侧 VLM 服务。
+- 负责摄像头采集、姿态检测、摔倒检测、云台跟随、Web 看护页、飞书交互、日报和突发情况通知。
+- 通过 `brain/brain_client.py` 调用云端 VLM 大脑。
 
-### Windows VLM 服务
+## 云端 VLM 大脑
 
-原始导入位置：
-
-```text
-_import_windows/vlm_service_cascade.py
-```
-
-开发位置：
+当前主部署运行在云服务器：
 
 ```text
-windows_brain/vlm_service_cascade.py
-```
-
-来源：
-
-```text
-F:\codex_project\ZhiShao\vlm_service_cascade.py
+systemd 服务：zhishao-brain
+监听地址：127.0.0.1:9000
+RDK 访问地址：http://127.0.0.1:19000
 ```
 
 作用：
+- 提供 `/ask`、`/analyze`、`/summarize`、`/privacy_check`、`/health`。
+- 调用 DashScope / Qwen-VL，为 RDK 提供视觉语言分析能力。
+- 端口 `9000` 只在云服务器本机使用，不对公网开放。
 
-- 在 Windows PC 上运行 Flask 服务。
-- 默认提供 `/ask`、`/analyze`、`/summarize`、`/privacy_check`、`/health`。
-- 调用 DashScope / Qwen-VL，为 RDK 主程序提供大模型分析能力。
+`windows_brain/` 保留为本地开发备用区。只有调试 Windows 本地 VLM 时才需要启动它。
 
-### 云服务器认证网关
+## 云服务器认证网关
 
 开发位置：
 
@@ -69,72 +75,48 @@ cloud_auth/
 ```
 
 作用：
-
-- 运行在云服务器上，替代公网看护页的浏览器 Basic Auth 弹窗。
+- 替代公网看护页的浏览器 Basic Auth 弹窗。
 - 提供登录、退出登录、管理员用户管理和 Nginx `auth_request` 校验入口。
-- 用户账号保存在云服务器 SQLite 数据库中，密码只保存哈希，不保存明文。
-- RDK 不保存网页登录账号，也不承担公网用户管理。
+- 用户账号保存在云服务器 SQLite 数据库中，密码只保存哈希。
+- RDK 不保存公网登录账号。
 
-## 目录说明
+## 常驻服务
 
-当前已存在目录：
-
-```text
-_import_windows/  Windows 侧已有文件导入区，保留原始导入文件
-_import_rdk/      RDK X5 项目导入区，保留从开发板拉取的项目基线
-rdk_app/          RDK 主程序开发区，后续功能修改优先在这里完成
-windows_brain/    Windows VLM 服务开发区，后续脑服务修改优先在这里完成
-docs/             项目说明、架构记录、接口契约、同步流程
-scripts/          后续放同步、部署、验证脚本
-cloud_auth/       云服务器网页登录、会话和用户管理网关
-templates/        可复用模板
-work/             临时分析和草稿
-outputs/          用户交付物
-```
-
-后续如果需要同步、部署、验证脚本或可复用模板，再按需新增 `scripts/`、`templates/` 等目录。
-
-## 两端关系
-
-RDK 主程序不是 Windows VLM 服务的替代版本。两者是协作关系：
+RDK 测试目录运行时应保持：
 
 ```text
-RDK 摄像头/姿态检测/飞书/Web 看护页
-  -> rdk_app/brain/brain_client.py
-  -> Windows PC 9000 端口 VLM 服务
-  -> DashScope / Qwen-VL
-  -> 分析结果返回 RDK
+zhishao-rdk-test       RDK 主程序
+zhishao-tunnel         RDK Web 到云服务器的反向隧道
+zhishao-brain-tunnel   RDK 到云端 VLM 的本地转发隧道
 ```
 
-更详细的数据流见：
+云服务器运行时应保持：
+
+```text
+zhishao-brain          云端 VLM 大脑
+zhishao-auth           登录与用户管理网关
+nginx                  公网入口反向代理
+```
+
+## 工作流
+
+1. 功能开发优先修改 `rdk_app/`、`windows_brain/` 或 `cloud_auth/`。
+2. 不移动、不覆盖 `_import_rdk/` 和 `_import_windows/`。
+3. 修改完成后先查看 Git diff。
+4. 默认同步到 RDK 测试目录 `/home/sunrise/ZhiShao_V2_codex_test`。
+5. RDK 测试通过后，再决定是否替换正式目录 `/home/sunrise/ZhiShao_V2`。
+
+更多说明：
 
 ```text
 docs/ARCHITECTURE.md
-```
-
-Windows VLM 服务接口契约见：
-
-```text
 docs/API_CONTRACT.md
-```
-
-## 推荐工作流程
-
-1. 在当前 Codex 工作区完成分析、文档整理和低风险优化。
-2. 不移动、不覆盖 `_import_rdk/` 和 `_import_windows/` 导入目录。
-3. 功能开发优先修改 `rdk_app/` 与 `windows_brain/`。
-4. 修改完成后先查看 Git diff。
-5. 同步到 RDK 测试目录 `/home/sunrise/ZhiShao_V2_codex_test`。
-6. 在 RDK 测试目录验证通过后，再决定是否替换正式目录 `/home/sunrise/ZhiShao_V2`。
-
-开发区说明见：
-
-```text
 docs/DEVELOPMENT_SETUP.md
+docs/RDK_SYNC_TODO.md
 ```
 
-## 注意事项
+## 注意
 
-- 不提交 `.env`、日志、缓存、数据库、模型文件和生成图片。
-- 修改部署脚本、服务启动方式、模型路径、设备路径、端口号前需要先说明影响。
-- RDK 硬件相关验证必须在 RDK X5 上完成。
+- 不提交 `.env`、日志、缓存、数据库、模型文件、图片和 GIF。
+- 不把 DashScope Key、飞书密钥、SSH 私钥或网页登录密码写入代码。
+- 修改端口、摄像头、串口、模型路径、服务启动方式前，需要单独说明影响。

@@ -63,11 +63,16 @@ def check_model_file():
 
 
 def check_brain_config():
+    privacy_url = getattr(
+        settings,
+        "BRAIN_URL_PRIVACY_CHECK",
+        settings.VLM_BASE_URL.rstrip("/") + "/privacy_check",
+    )
     urls = {
         "ask": settings.BRAIN_URL_ASK,
         "analyze": settings.BRAIN_URL_ANALYZE,
         "summarize": settings.BRAIN_URL_SUMMARIZE,
-        "privacy_check": settings.BRAIN_URL_PRIVACY_CHECK,
+        "privacy_check": privacy_url,
     }
     invalid = []
     for key, value in urls.items():
@@ -75,31 +80,31 @@ def check_brain_config():
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             invalid.append(f"{key}={value!r}")
     if invalid:
-        return fail("Windows VLM URLs", "invalid URLs: " + ", ".join(invalid))
-    return ok("Windows VLM URLs", ", ".join(f"{k}={v}" for k, v in urls.items()))
+        return fail("云端 VLM 大脑 URLs", "invalid URLs: " + ", ".join(invalid))
+    return ok("云端 VLM 大脑 URLs", ", ".join(f"{k}={v}" for k, v in urls.items()))
 
 
 def check_brain_health(timeout):
     try:
         requests = importlib.import_module("requests")
     except Exception as exc:
-        return fail("Windows VLM /health", f"requests import failed: {exc}")
+        return fail("云端 VLM 大脑 /health", f"requests import failed: {exc}")
     url = settings.VLM_BASE_URL.rstrip("/") + "/health"
     try:
         response = requests.get(url, timeout=timeout)
     except Exception as exc:
-        return fail("Windows VLM /health", f"{url} unreachable: {type(exc).__name__}: {exc}")
+        return fail("云端 VLM 大脑 /health", f"{url} unreachable: {type(exc).__name__}: {exc}")
     if response.status_code != 200:
-        return fail("Windows VLM /health", f"{url} returned HTTP {response.status_code}")
+        return fail("云端 VLM 大脑 /health", f"{url} returned HTTP {response.status_code}")
     try:
         payload = response.json()
     except Exception as exc:
-        return fail("Windows VLM /health", f"{url} returned non-JSON response: {exc}")
+        return fail("云端 VLM 大脑 /health", f"{url} returned non-JSON response: {exc}")
     if not payload.get("ok"):
-        return fail("Windows VLM /health", f"{url} returned ok=false: {payload}")
+        return fail("云端 VLM 大脑 /health", f"{url} returned ok=false: {payload}")
     if payload.get("dashscope_configured") is False:
-        return warn("Windows VLM /health", f"{url} is reachable, but DashScope API key is not configured")
-    return ok("Windows VLM /health", f"{url} ok; model={payload.get('model', 'unknown')}")
+        return warn("云端 VLM 大脑 /health", f"{url} is reachable, but DashScope API key is not configured")
+    return ok("云端 VLM 大脑 /health", f"{url} ok; model={payload.get('model', 'unknown')}")
 
 
 def check_camera():
@@ -159,7 +164,7 @@ def collect_results(args):
         check_feishu_config(),
     ]
     if args.skip_network:
-        results.append(warn("Windows VLM /health", "skipped by --skip-network"))
+        results.append(warn("云端 VLM 大脑 /health", "skipped by --skip-network"))
     else:
         results.append(check_brain_health(args.timeout))
     if args.skip_ptz:
@@ -185,7 +190,7 @@ def parse_args(argv):
     parser = argparse.ArgumentParser(description="Run ZhiShao RDK X5 deployment preflight checks.")
     parser.add_argument("--skip-camera", action="store_true", help="Skip opening the configured camera.")
     parser.add_argument("--skip-ptz", action="store_true", help="Skip checking the configured PTZ serial device path.")
-    parser.add_argument("--skip-network", action="store_true", help="Skip Windows VLM /health request.")
+    parser.add_argument("--skip-network", action="store_true", help="Skip cloud VLM /health request.")
     parser.add_argument("--timeout", type=float, default=3.0, help="Network timeout in seconds.")
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     parser.add_argument("--no-exit-code", action="store_true", help="Always exit 0 after printing results.")

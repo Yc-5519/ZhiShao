@@ -79,8 +79,8 @@ PTZ_REQUIRE_LOCK_FOR_FOLLOW = _env_bool("ZHISHAO_PTZ_REQUIRE_LOCK_FOR_FOLLOW", F
 # =========================================================================
 # 云端大脑服务
 # =========================================================================
-VLM_SERVER_IP = _env("ZHISHAO_VLM_SERVER_IP", "192.168.43.100")
-VLM_SERVER_PORT = _env_int("ZHISHAO_VLM_SERVER_PORT", 9000)
+VLM_SERVER_IP = _env("ZHISHAO_VLM_SERVER_IP", "127.0.0.1")
+VLM_SERVER_PORT = _env_int("ZHISHAO_VLM_SERVER_PORT", 19000)
 VLM_BASE_URL = _env("ZHISHAO_VLM_BASE_URL", f"http://{VLM_SERVER_IP}:{VLM_SERVER_PORT}")
 
 BRAIN_URL_ANALYZE = _env("ZHISHAO_BRAIN_URL_ANALYZE", f"{VLM_BASE_URL}/analyze")
