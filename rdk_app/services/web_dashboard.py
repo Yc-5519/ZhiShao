@@ -7,7 +7,12 @@ import cv2
 from flask import Flask, Response, jsonify, request
 from werkzeug.serving import WSGIRequestHandler
 
-from settings import PUBLIC_MONITOR_URL
+from settings import (
+    PUBLIC_MONITOR_URL,
+    WEB_RAW_JPEG_QUALITY,
+    WEB_SKELETON_JPEG_QUALITY,
+    WEB_VIDEO_FRAME_INTERVAL_SECONDS,
+)
 
 
 def get_lan_ip():
@@ -48,20 +53,39 @@ class WebDashboard:
         self.host = host
         self.port = port
         self.flask = Flask(__name__)
+        self._jpeg_lock = threading.Lock()
+        self._jpeg_cache = {}
         logging.getLogger("werkzeug").setLevel(logging.ERROR)
         self._routes()
 
     def _should_log_access(self, path):
         return not (path.startswith("/video/") or path == "/api/status")
 
+    def _jpeg_bytes(self, source):
+        now = time.time()
+        cached = self._jpeg_cache.get(source)
+        if cached and now - cached["ts"] < WEB_VIDEO_FRAME_INTERVAL_SECONDS:
+            return cached["jpeg"]
+        with self._jpeg_lock:
+            now = time.time()
+            cached = self._jpeg_cache.get(source)
+            if cached and now - cached["ts"] < WEB_VIDEO_FRAME_INTERVAL_SECONDS:
+                return cached["jpeg"]
+            frame = self.app_service.get_video_frame(source)
+            quality = WEB_RAW_JPEG_QUALITY if source == "raw" else WEB_SKELETON_JPEG_QUALITY
+            ret, buffer = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
+            if not ret:
+                return cached["jpeg"] if cached else b""
+            jpeg = buffer.tobytes()
+            self._jpeg_cache[source] = {"ts": now, "jpeg": jpeg}
+            return jpeg
+
     def _jpeg_stream(self, source):
         while True:
-            frame = self.app_service.get_video_frame(source)
-            quality = 68 if source == "raw" else 72
-            ret, buffer = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
-            if ret:
-                yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n"
-            time.sleep(0.05 if source == "raw" else 0.08)
+            jpeg = self._jpeg_bytes(source)
+            if jpeg:
+                yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + jpeg + b"\r\n"
+            time.sleep(WEB_VIDEO_FRAME_INTERVAL_SECONDS)
 
     def _routes(self):
         @self.flask.after_request
@@ -97,7 +121,7 @@ class WebDashboard:
 
         @self.flask.route("/api/status")
         def status():
-            return jsonify(self.app_service.status_payload())
+            return jsonify(self.app_service.status_payload(compact=True))
 
         @self.flask.route("/health")
         def health():
@@ -277,8 +301,12 @@ class WebDashboard:
       hidePrivacyModal();
       await cmd('open_raw_view');
     }
+    let refreshing = false;
     async function refresh(){
-      const res = await fetch('/api/status'); const data = await res.json(); const m = data.metrics || {}; const s = data.status || {};
+      if(refreshing) return;
+      refreshing = true;
+      try {
+      const res = await fetch('/api/status', {cache:'no-store'}); const data = await res.json(); const m = data.metrics || {}; const s = data.status || {};
       document.getElementById('seen').textContent = min(m.seen_seconds);
       document.getElementById('active').textContent = min(m.active_seconds);
       document.getElementById('suspect').textContent = Number(m.suspect_fall_count || 0).toFixed(0);
@@ -323,6 +351,11 @@ class WebDashboard:
         div.innerHTML=`${esc(e.message || e.type)}${detail}<small>${esc(e.ts || '')} · ${esc(e.type || '')}</small>`;
         box.appendChild(div);
       });
+      } catch(e) {
+        document.getElementById('stamp').textContent='连接中断，正在重试';
+      } finally {
+        refreshing = false;
+      }
     }
     async function cmd(command){
       const res=await fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command})});

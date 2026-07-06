@@ -24,24 +24,30 @@ class AppService:
         self.brain = brain
         self.bot = bot
 
-    def status_payload(self):
+    def status_payload(self, compact=False):
         metrics = self.store.get_metrics()
         events = self.store.list_events(limit=8, date=self.store.today())
-        return {
+        payload = {
             "ok": True,
             "status": self.runtime.snapshot(),
             "metrics": metrics,
             "events": events,
-            "status_text": self.status_text(),
-            "system_brief_text": self.system_brief_text(metrics),
             "comfort_text": self.comfort_text(metrics),
             "family_summary": self.family_summary(metrics),
-            "privacy_text": self.privacy_status_text(),
             "video_age": {
                 "raw": self.frame_hub.raw_age(),
                 "skeleton": self.frame_hub.skeleton_age(),
             },
         }
+        if not compact:
+            payload.update(
+                {
+                    "status_text": self.status_text(),
+                    "system_brief_text": self.system_brief_text(metrics),
+                    "privacy_text": self.privacy_status_text(),
+                }
+            )
+        return payload
 
     def comfort_text(self, metrics=None):
         metrics = metrics or self.store.get_metrics()

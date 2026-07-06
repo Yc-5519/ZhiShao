@@ -324,6 +324,6 @@ class VisionWorker:
             if self.is_moving:
                 increments["active_seconds"] = elapsed
             self.store.set_metrics(last_seen_time=self.store.now_text(), fall_mode=self.fall_detector.mode_label())
-        if self.runtime.snapshot().get("ptz_mode") == "温和巡航":
+        if self.runtime.snapshot().get("ptz_mode") in ("温和巡航", "无人搜索"):
             increments["search_seconds"] = elapsed
         self.store.add_metrics(**increments)

@@ -150,6 +150,14 @@ INCIDENT_NO_PERSON_SECONDS = _env_float("ZHISHAO_INCIDENT_NO_PERSON_SECONDS", 30
 
 
 # =========================================================================
+# Web dashboard streaming. Lower FPS and cached JPEGs keep RDK and cloud tunnel responsive.
+# =========================================================================
+WEB_VIDEO_FRAME_INTERVAL_SECONDS = _env_float("ZHISHAO_WEB_VIDEO_FRAME_INTERVAL_SECONDS", 0.16)
+WEB_SKELETON_JPEG_QUALITY = _env_int("ZHISHAO_WEB_SKELETON_JPEG_QUALITY", 62)
+WEB_RAW_JPEG_QUALITY = _env_int("ZHISHAO_WEB_RAW_JPEG_QUALITY", 58)
+
+
+# =========================================================================
 # 历史兼容配置：当前人物锁定默认不再使用人脸识别
 # =========================================================================
 FACE_MODEL_DIR = os.path.join(BASE_DIR, "models")

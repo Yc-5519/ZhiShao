@@ -5,6 +5,8 @@ import unittest
 from types import SimpleNamespace
 from unittest import mock
 
+import numpy as np
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
@@ -147,6 +149,29 @@ class CloudFeatureTests(unittest.TestCase):
         self.assertIn("云端大脑暂时连接不上", answer["answer"])
         self.assertIn("本地看护仍在运行", answer["answer"])
         self.assertIn("安心状态", answer["answer"])
+
+    def test_web_status_route_uses_compact_payload(self):
+        app = SimpleNamespace(status_payload=mock.Mock(return_value={"ok": True}))
+        dashboard = web_dashboard.WebDashboard(app)
+
+        with dashboard.flask.test_client() as client:
+            response = client.get("/api/status")
+
+        self.assertEqual(response.status_code, 200)
+        app.status_payload.assert_called_once_with(compact=True)
+
+    def test_video_stream_reuses_cached_jpeg_frame(self):
+        frame = np.zeros((24, 32, 3), dtype=np.uint8)
+        app = SimpleNamespace(get_video_frame=mock.Mock(return_value=frame))
+        dashboard = web_dashboard.WebDashboard(app)
+
+        with mock.patch.object(web_dashboard.time, "time", return_value=1000.0):
+            first = dashboard._jpeg_bytes("skeleton")
+            second = dashboard._jpeg_bytes("skeleton")
+
+        self.assertTrue(first.startswith(b"\xff\xd8"))
+        self.assertEqual(first, second)
+        app.get_video_frame.assert_called_once_with("skeleton")
 
 
 class StoreAccessLogTests(unittest.TestCase):
