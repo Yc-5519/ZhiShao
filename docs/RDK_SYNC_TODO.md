@@ -4,14 +4,14 @@
 
 ```text
 RDK 正式目录：/home/sunrise/ZhiShao_V2
-RDK 测试目录：/home/sunrise/ZhiShao_V2_codex_test
-Windows 工作区：F:\CodexWorkspace\Project_01_ZhiShao_RDK_X5
+RDK 测试目录：/home/sunrise/ZhiShao_V2_test
+Windows 工作区：F:\Workspace\Project_01_ZhiShao_RDK_X5
 ```
 
 ## 基本原则
 
 - 不直接覆盖 `/home/sunrise/ZhiShao_V2`。
-- 先把 Codex 修改同步到 `/home/sunrise/ZhiShao_V2_codex_test`。
+- 先把本地修改同步到 `/home/sunrise/ZhiShao_V2_test`。
 - `.env`、日志、缓存、数据库、模型文件和生成图片不作为普通代码同步目标。
 - RDK 测试目录验证通过后，再单独决定是否替换正式目录。
 
@@ -29,7 +29,7 @@ hostname -I
 ssh sunrise@<RDK_IP>
 ```
 
-3. 在 Codex 工作区检查改动：
+3. 在 Windows 工作区检查改动：
 
 ```powershell
 git status --short
@@ -39,13 +39,13 @@ git diff
 4. 确保 RDK 测试目录存在：
 
 ```bash
-mkdir -p /home/sunrise/ZhiShao_V2_codex_test
+mkdir -p /home/sunrise/ZhiShao_V2_test
 ```
 
 5. 同步 RDK 开发区到测试目录：
 
 ```powershell
-scp -r "F:\CodexWorkspace\Project_01_ZhiShao_RDK_X5\rdk_app\*" sunrise@<RDK_IP>:/home/sunrise/ZhiShao_V2_codex_test/
+scp -r "F:\Workspace\Project_01_ZhiShao_RDK_X5\rdk_app\*" sunrise@<RDK_IP>:/home/sunrise/ZhiShao_V2_test/
 ```
 
 不要同步 `.env` 的真实内容，不要同步模型、日志、数据库、缓存、图片或 GIF。
@@ -55,7 +55,7 @@ scp -r "F:\CodexWorkspace\Project_01_ZhiShao_RDK_X5\rdk_app\*" sunrise@<RDK_IP>:
 进入测试目录：
 
 ```bash
-cd /home/sunrise/ZhiShao_V2_codex_test
+cd /home/sunrise/ZhiShao_V2_test
 ```
 
 只读检查：

@@ -17,7 +17,7 @@ zhishao-rdk
 测试目录仍保留，但不再作为主运行入口：
 
 ```text
-/home/sunrise/ZhiShao_V2_codex_test
+/home/sunrise/ZhiShao_V2_test
 ```
 
 ## 已实现功能

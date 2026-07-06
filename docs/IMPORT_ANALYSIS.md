@@ -1,4 +1,4 @@
-﻿# RDK 导入与 Windows VLM 服务分析
+# RDK 导入与 Windows VLM 服务分析
 
 更新时间：2026-06-27
 
@@ -13,7 +13,7 @@ _import_windows/vlm_service_cascade.py
 来源：
 
 ```text
-F:\codex_project\ZhiShao\vlm_service_cascade.py
+F:\source_project\ZhiShao\vlm_service_cascade.py
 ```
 
 作用判断：这是一个 Flask 服务，默认监听 `0.0.0.0:9000`，提供：

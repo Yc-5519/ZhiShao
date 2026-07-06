@@ -186,7 +186,7 @@ class BrainClient:
             if response.status_code == 200:
                 res_data = response.json()
                 
-                # 🚀 核心闭环：如果大模型成功回答了，就把这一轮对话存入记忆记事本！
+                # 🚀 核心闭环：如果云端视觉分析服务成功回答了，就把这一轮对话存入记忆记事本！
                 answer = res_data.get("answer", "")
                 if answer:
                     self.chat_history.append((question, answer))

@@ -108,7 +108,7 @@ RDK 汇总活动日志
 RDK 测试目录：
 
 ```text
-/home/sunrise/ZhiShao_V2_codex_test
+/home/sunrise/ZhiShao_V2_test
 ```
 
 RDK 正式目录：

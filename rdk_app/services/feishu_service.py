@@ -193,11 +193,11 @@ class FeishuService:
                 self.bot.reply_text(msg_id, reply)
                 return
 
-        # 异步处理大模型请求，避免阻塞飞书 WebSocket 接收线程
+        # 异步处理云端视觉分析请求，避免阻塞飞书 WebSocket 接收线程
         threading.Thread(target=self._async_ask_brain, args=(msg_id, question), daemon=True).start()
 
     def _async_ask_brain(self, msg_id, question):
-        """在独立线程中请求大模型并回复"""
+        """在独立线程中请求云端视觉分析服务并回复"""
         result = self.app_service.ask_brain(question)
         answer = result.get("answer", "系统大脑开小差了，稍后再试。")
         if result.get("need_image"):

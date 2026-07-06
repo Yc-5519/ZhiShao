@@ -3,7 +3,7 @@
 本文用于比赛前验证 RDK 测试目录中的人物跟随能力。默认测试目录为：
 
 ```text
-/home/sunrise/ZhiShao_V2_codex_test
+/home/sunrise/ZhiShao_V2_test
 ```
 
 不要覆盖正式目录：

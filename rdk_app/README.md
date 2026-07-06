@@ -51,7 +51,7 @@ yolov8n-pose.bin
 
 ## 验证建议
 
-Windows Codex 工作区适合做静态检查和非硬件单测：
+Windows 本地工作区适合做静态检查和非硬件单测：
 
 ```powershell
 python -m unittest discover -s rdk_app\tests
@@ -61,7 +61,7 @@ python -m py_compile rdk_app\preflight_check.py rdk_app\settings.py
 RDK 测试目录适合做完整验证：
 
 ```bash
-cd /home/sunrise/ZhiShao_V2_codex_test
+cd /home/sunrise/ZhiShao_V2_test
 python3 preflight_check.py
 curl http://127.0.0.1:5000/health
 curl http://127.0.0.1:19000/health

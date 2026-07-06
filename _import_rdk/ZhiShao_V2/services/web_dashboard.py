@@ -213,12 +213,12 @@ class WebDashboard:
   <div class="modalBack" id="privacyModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <div class="modal">
       <h2 id="modalTitle">临时查看真实画面确认</h2>
-      <p>真实画面只用于确认父母此刻是否安全。点击确认后，系统会先调用大模型判断当前画面是否存在明显隐私泄露。</p>
-      <p>只有大模型确认无明显隐私风险时，真实画面才会开启 3 分钟，并叠加“临时安全确认”水印。</p>
+      <p>真实画面只用于确认父母此刻是否安全。点击确认后，系统会先调用云端隐私复核判断当前画面是否存在明显隐私泄露。</p>
+      <p>只有云端隐私复核确认无明显隐私风险时，真实画面才会开启 3 分钟，并叠加“临时安全确认”水印。</p>
       <p class="rule">请避免录屏、截图、转发或让无关人员观看。若当前状态平稳，建议优先使用脱敏画面和电话问候。</p>
       <label class="check">
         <input id="privacyAck" type="checkbox" />
-        <span>我确认本次查看仅用于安全确认，并理解系统会先做大模型隐私复核，通过后才限时开启。</span>
+        <span>我确认本次查看仅用于安全确认，并理解系统会先做云端隐私复核，通过后才限时开启。</span>
       </label>
       <div class="modalActions">
         <button onclick="hidePrivacyModal()">取消</button>

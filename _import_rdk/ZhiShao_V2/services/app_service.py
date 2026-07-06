@@ -80,7 +80,7 @@ class AppService:
         raw_line = (
             f"真实画面：临时开启中，剩余 {state['raw_video_seconds_left']} 秒"
             if state["raw_video_allowed"]
-            else "真实画面：默认关闭，开启前需大模型隐私复核"
+            else "真实画面：默认关闭，开启前需云端隐私复核"
         )
         return (
             f"安心状态：{self.comfort_text(metrics)}\n"
@@ -237,12 +237,12 @@ class AppService:
         self.runtime.allow_raw_video(self.RAW_VIEW_SECONDS)
         self.store.record_event(
             "raw_view_opened",
-            f"大模型确认无明显隐私泄露后，家属临时开启真实画面 {self.RAW_VIEW_SECONDS // 60} 分钟。",
+            f"云端视觉分析服务确认无明显隐私泄露后，家属临时开启真实画面 {self.RAW_VIEW_SECONDS // 60} 分钟。",
             "info",
             {"seconds": self.RAW_VIEW_SECONDS, "privacy_check": result},
         )
         return True, (
-            f"大模型已确认当前画面无明显隐私泄露，真实画面临时开启 {self.RAW_VIEW_SECONDS // 60} 分钟。\n"
+            f"云端视觉分析服务已确认当前画面无明显隐私泄露，真实画面临时开启 {self.RAW_VIEW_SECONDS // 60} 分钟。\n"
             "请只用于确认安全，到时会自动关闭；默认看护仍以状态和脱敏画面为主。\n"
             "隐私提示：请避免录屏、截图、转发或让无关人员观看。"
         )
@@ -265,7 +265,7 @@ class AppService:
         if state["raw_video_allowed"]:
             raw = f"真实画面临时开启中，剩余 {state['raw_video_seconds_left']} 秒。"
         else:
-            raw = "真实画面默认关闭，开启前必须通过大模型隐私复核。"
+            raw = "真实画面默认关闭，开启前必须通过云端隐私复核。"
         return (
             "隐私与安心边界\n"
             f"- 看护模式：{state['care_mode']}\n"
@@ -281,7 +281,7 @@ class AppService:
         if self.comfort_text(metrics) == "整体平稳":
             advice = "当前暂无必要查看真实画面；如仍不放心，可先打开脱敏看护页。"
         else:
-            advice = "建议先电话问候；如果联系不上，可申请临时查看真实画面，系统会先做大模型隐私复核。"
+            advice = "建议先电话问候；如果联系不上，可申请临时查看真实画面，系统会先做云端隐私复核。"
         return (
             f"{self.family_summary(metrics)}\n\n"
             f"{advice}\n"
@@ -391,7 +391,7 @@ class AppService:
             "日报：立即生成并发送今日健康日报。\n"
             "系统自检：检查主程序、摄像头、云台串口、网页看板等是否正常。\n\n"
             "二、隐私画面指令\n"
-            "我想确认一下 / 临时查看真实画面：申请临时打开真实画面；必须先通过本地大模型隐私复核，通过后限时开启。\n"
+            "我想确认一下 / 临时查看真实画面：申请临时打开真实画面；必须先通过本地隐私复核服务，通过后限时开启。\n"
             "关闭真实画面：立即关闭真实画面，恢复默认脱敏看护。\n"
             "说明：复核不通过时会显示具体原因，例如服务不可用、模型不确定或画面存在隐私风险。\n\n"
             "三、人物锁定与云台指令\n"

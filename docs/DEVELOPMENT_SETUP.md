@@ -1,6 +1,6 @@
 # 开发区与验证说明
 
-本文说明当前 Codex 工作区的开发目录、云端 VLM 主链路和验证方式。
+本文说明当前 Windows 工作区的开发目录、云端 VLM 主链路和验证方式。
 
 ## 开发目录
 
@@ -69,7 +69,7 @@ QWEN_VL_MODEL
 
 ## 本地只读语法检查
 
-在 Windows Codex 工作区可运行：
+在 Windows 本地工作区可运行：
 
 ```powershell
 python -m unittest discover -s rdk_app\tests
@@ -77,14 +77,14 @@ python -m py_compile rdk_app\preflight_check.py rdk_app\settings.py
 git diff --check
 ```
 
-Windows Codex 工作区只适合做静态检查和非硬件单测。摄像头、串口云台、BPU 模型和飞书长连接需要在 RDK X5 上验证。
+Windows 本地工作区只适合做静态检查和非硬件单测。摄像头、串口云台、BPU 模型和飞书长连接需要在 RDK X5 上验证。
 
 ## RDK 验证
 
 默认目标仍是测试目录：
 
 ```text
-/home/sunrise/ZhiShao_V2_codex_test
+/home/sunrise/ZhiShao_V2_test
 ```
 
 不要直接覆盖正式目录：
@@ -96,7 +96,7 @@ Windows Codex 工作区只适合做静态检查和非硬件单测。摄像头、
 RDK 测试目录中建议执行：
 
 ```bash
-cd /home/sunrise/ZhiShao_V2_codex_test
+cd /home/sunrise/ZhiShao_V2_test
 python3 preflight_check.py
 python3 -m py_compile main.py settings.py brain/brain_client.py services/incident_monitor.py
 python3 -m unittest discover -s tests
