@@ -2,6 +2,7 @@ import os
 import sys
 import unittest
 from types import SimpleNamespace
+from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
@@ -92,6 +93,11 @@ class FakeBrain:
         return {"ok": self.ok, "label": "VLM", "detail": self.detail}
 
 
+class FakeHttpResponse:
+    def __init__(self, status_code):
+        self.status_code = status_code
+
+
 def make_service(clock, runtime=None, frame_hub=None, brain=None, public_ok=True, bot=None):
     return IncidentMonitorService(
         FakeStore(),
@@ -179,6 +185,23 @@ class IncidentMonitorTests(unittest.TestCase):
         self.assertEqual(len(service.bot.messages), 1)
         self.assertIn("公网", service.bot.messages[0][1])
         self.assertEqual(service.store.events[-1]["type"], "incident_public_gateway")
+
+    def test_public_gateway_login_redirect_counts_as_reachable(self):
+        clock = FakeClock()
+        service = IncidentMonitorService(
+            FakeStore(),
+            FakeRuntime(),
+            FakeFrameHub(),
+            FakeBrain(),
+            FakeBot(),
+            now=clock.now,
+            sleep=lambda seconds: None,
+        )
+
+        with mock.patch("services.incident_monitor.requests.get", return_value=FakeHttpResponse(302)) as get:
+            self.assertTrue(service._default_public_check("http://public.example"))
+
+        get.assert_called_once_with("http://public.example/health", timeout=3, allow_redirects=False)
 
     def test_no_person_for_long_time_sends_camera_position_advice(self):
         clock = FakeClock()

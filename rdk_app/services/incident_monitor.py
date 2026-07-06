@@ -271,5 +271,5 @@ class IncidentMonitorService:
 
     def _default_public_check(self, public_url):
         health_url = f"{public_url.rstrip('/')}/health"
-        response = requests.get(health_url, timeout=3)
-        return response.status_code in (200, 401, 403)
+        response = requests.get(health_url, timeout=3, allow_redirects=False)
+        return response.status_code in (200, 301, 302, 303, 307, 308, 401, 403)
