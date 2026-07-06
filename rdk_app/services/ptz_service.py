@@ -17,6 +17,8 @@ from settings import (
     PTZ_MAX_STEP_Y,
     PTZ_MIN_STEP_X,
     PTZ_MIN_STEP_Y,
+    PTZ_NO_TARGET_SEARCH_DELAY_SECONDS,
+    PTZ_NO_TARGET_SEARCH_DURATION_SECONDS,
 )
 from core.ptz_controller import ptz
 
@@ -31,6 +33,7 @@ class PTZService:
         self.last_calc = time.time()
         self.last_cmd = 0.0
         self.search_start = None
+        self.search_centered = False
         self.manual_hold_until = 0.0
         self.kf_enabled = False
         self.x = np.zeros((4, 1), dtype=np.float32)
@@ -149,6 +152,7 @@ class PTZService:
         self.last_calc = now
         self.last_seen = now
         self.search_start = None
+        self.search_centered = False
         if not self.kf_enabled:
             self._init_kf(target["cx"], target["cy"])
         else:
@@ -182,10 +186,33 @@ class PTZService:
                     self.last_cmd = now
             self.runtime.update(ptz_mode="短时外推")
             return
-        self.gentle_search()
+        no_target_elapsed = now - self.last_seen
+        if no_target_elapsed < PTZ_NO_TARGET_SEARCH_DELAY_SECONDS:
+            self.search_start = None
+            self.kf_enabled = False
+            self.runtime.update(ptz_mode="等待目标经过")
+            return
+        if self.search_start is None:
+            self.search_start = now
+        if now - self.search_start <= PTZ_NO_TARGET_SEARCH_DURATION_SECONDS:
+            self.gentle_search(now=now)
+            return
+        self._center_after_search(now)
 
-    def gentle_search(self):
-        now = time.time()
+    def _center_after_search(self, now):
+        self.kf_enabled = False
+        if self.search_centered:
+            self.runtime.update(ptz_mode="回中等待")
+            return
+        if now - self.last_cmd < 0.35:
+            return
+        if ptz.center():
+            self.last_cmd = now
+            self.search_centered = True
+            self.runtime.update(ptz_mode="回中等待")
+
+    def gentle_search(self, now=None):
+        now = time.time() if now is None else now
         if now < self.manual_hold_until:
             self.runtime.update(ptz_mode="手动微调保持")
             return
@@ -201,7 +228,7 @@ class PTZService:
         moved = ptz.set_tilt(tilt) or moved
         if moved:
             self.last_cmd = now
-            self.runtime.update(ptz_mode="温和巡航")
+            self.runtime.update(ptz_mode="无人搜索")
 
     def serial_ok(self):
         return bool(ptz.is_open())

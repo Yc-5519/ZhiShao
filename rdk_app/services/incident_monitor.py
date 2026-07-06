@@ -171,20 +171,12 @@ class IncidentMonitorService:
     def _check_no_person(self, state):
         target_count = int(state.get("target_count", 0) or 0)
         seen_before = bool(str(state.get("last_seen_time") or "").strip())
-        self._handle_condition(
-            key="no_person",
-            unhealthy=seen_before and target_count <= 0,
-            threshold=self.no_person_seconds,
-            alert_title="智哨突发情况：长时间没有看到人",
-            alert_message=(
-                "系统长时间没有看到人，也没有看到可信人体目标。\n"
-                "可能原因：老人离开画面、摄像头被移动、摄像头倾倒、光线太暗或被遮挡。\n"
-                "请先通过电话确认安全，再检查摄像头角度和现场环境。"
-            ),
-            recover_title="智哨突发情况已恢复：重新看到人体目标",
-            recover_message="系统已经重新看到可信人体目标，继续正常看护。",
-            event_type="incident_no_person",
-        )
+        if target_count > 0 or not seen_before:
+            self._bad_since.pop("no_person", None)
+            self._active.discard("no_person")
+            self._last_alert_at.pop("no_person", None)
+            return
+        self._bad_since.setdefault("no_person", self.now())
 
     def _handle_condition(
         self,

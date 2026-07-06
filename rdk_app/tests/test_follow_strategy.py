@@ -3,6 +3,7 @@ import sys
 import time
 import unittest
 from types import SimpleNamespace
+from unittest import mock
 
 import numpy as np
 
@@ -81,6 +82,7 @@ class FakePTZ:
         self.current_tilt = 90
         self.pan_commands = []
         self.tilt_commands = []
+        self.center_calls = 0
 
     def ensure_connected(self):
         return True
@@ -99,6 +101,7 @@ class FakePTZ:
         return True
 
     def center(self):
+        self.center_calls += 1
         self.current_pan = 90
         self.current_tilt = 90
         return True
@@ -124,7 +127,15 @@ class PTZFollowControlTests(unittest.TestCase):
         }
         self.original_optional = {
             name: getattr(ptz_service, name, None)
-            for name in ("PTZ_MAX_STEP_X", "PTZ_MAX_STEP_Y", "PTZ_MIN_STEP_X", "PTZ_MIN_STEP_Y", "PTZ_COMMAND_INTERVAL")
+            for name in (
+                "PTZ_MAX_STEP_X",
+                "PTZ_MAX_STEP_Y",
+                "PTZ_MIN_STEP_X",
+                "PTZ_MIN_STEP_Y",
+                "PTZ_COMMAND_INTERVAL",
+                "PTZ_NO_TARGET_SEARCH_DELAY_SECONDS",
+                "PTZ_NO_TARGET_SEARCH_DURATION_SECONDS",
+            )
         }
         ptz_service.ptz = self.fake_ptz
         ptz_service.PTZ_DEADZONE_X = 40
@@ -136,6 +147,8 @@ class PTZFollowControlTests(unittest.TestCase):
         ptz_service.PTZ_MIN_STEP_X = 1
         ptz_service.PTZ_MIN_STEP_Y = 1
         ptz_service.PTZ_COMMAND_INTERVAL = 0.0
+        ptz_service.PTZ_NO_TARGET_SEARCH_DELAY_SECONDS = 60.0
+        ptz_service.PTZ_NO_TARGET_SEARCH_DURATION_SECONDS = 20.0
 
     def tearDown(self):
         ptz_service.ptz = self.original_ptz
@@ -161,6 +174,37 @@ class PTZFollowControlTests(unittest.TestCase):
         service.follow(target(620))
 
         self.assertEqual(self.fake_ptz.pan_commands[-1], 85)
+
+    def test_no_target_waits_one_minute_before_searching(self):
+        runtime = RuntimeStub()
+        service = PTZService(runtime)
+        service.last_seen = 100.0
+        service.kf_enabled = False
+
+        with mock.patch("services.ptz_service.time.time", return_value=159.0):
+            service.on_no_target()
+
+        self.assertFalse(self.fake_ptz.pan_commands)
+        self.assertEqual(self.fake_ptz.center_calls, 0)
+        self.assertEqual(runtime.values["ptz_mode"], "等待目标经过")
+
+    def test_no_target_searches_after_one_minute_then_centers(self):
+        runtime = RuntimeStub()
+        service = PTZService(runtime)
+        service.last_seen = 100.0
+        service.kf_enabled = False
+
+        with mock.patch("services.ptz_service.time.time", return_value=161.0):
+            service.on_no_target()
+
+        self.assertTrue(self.fake_ptz.pan_commands)
+        self.assertEqual(runtime.values["ptz_mode"], "无人搜索")
+
+        with mock.patch("services.ptz_service.time.time", return_value=182.0):
+            service.on_no_target()
+
+        self.assertEqual(self.fake_ptz.center_calls, 1)
+        self.assertEqual(runtime.values["ptz_mode"], "回中等待")
 
 
 if __name__ == "__main__":

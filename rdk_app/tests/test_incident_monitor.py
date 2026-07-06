@@ -203,7 +203,7 @@ class IncidentMonitorTests(unittest.TestCase):
 
         get.assert_called_once_with("http://public.example/health", timeout=3, allow_redirects=False)
 
-    def test_no_person_for_long_time_sends_camera_position_advice(self):
+    def test_no_person_for_long_time_does_not_send_feishu_alert(self):
         clock = FakeClock()
         runtime = FakeRuntime(target_count=0, last_seen_time="2026-07-01 09:50:00")
         service = make_service(clock, runtime=runtime)
@@ -212,12 +212,11 @@ class IncidentMonitorTests(unittest.TestCase):
         clock.advance(31)
         service.check_once()
 
-        self.assertEqual(len(service.bot.messages), 1)
-        self.assertIn("长时间没有看到人", service.bot.messages[0][1])
-        self.assertIn("摄像头", service.bot.messages[0][1])
-        self.assertEqual(service.store.events[-1]["type"], "incident_no_person")
+        self.assertEqual(len(service.bot.messages), 0)
+        self.assertEqual(service.store.events, [])
+        self.assertIn("no_person", service._bad_since)
 
-    def test_no_person_recovery_sends_resolved_message(self):
+    def test_no_person_recovery_clears_internal_state_without_alert(self):
         clock = FakeClock()
         runtime = FakeRuntime(target_count=0, last_seen_time="2026-07-01 09:50:00")
         service = make_service(clock, runtime=runtime)
@@ -228,8 +227,9 @@ class IncidentMonitorTests(unittest.TestCase):
         runtime.state.update(target_count=1)
         service.check_once()
 
-        self.assertEqual(len(service.bot.messages), 2)
-        self.assertEqual(service.store.events[-1]["type"], "incident_no_person_recovered")
+        self.assertEqual(len(service.bot.messages), 0)
+        self.assertNotIn("no_person", service._bad_since)
+        self.assertNotIn("no_person", service._active)
 
     def test_alert_event_records_webhook_success(self):
         clock = FakeClock()
@@ -258,7 +258,7 @@ class IncidentMonitorTests(unittest.TestCase):
     def test_default_no_person_threshold_is_practical_for_camera_movement(self):
         import settings
 
-        self.assertLessEqual(settings.INCIDENT_NO_PERSON_SECONDS, 60.0)
+        self.assertEqual(settings.PTZ_NO_TARGET_SEARCH_DELAY_SECONDS, 60.0)
 
 
 if __name__ == "__main__":
