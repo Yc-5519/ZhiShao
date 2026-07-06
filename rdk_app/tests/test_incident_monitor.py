@@ -22,12 +22,13 @@ class FakeClock:
 
 
 class FakeBot:
-    def __init__(self):
+    def __init__(self, response=None):
         self.messages = []
+        self.response = {"ok": True} if response is None else response
 
     def send_webhook(self, title, content):
         self.messages.append((title, content))
-        return {"ok": True}
+        return self.response
 
 
 class FakeStore:
@@ -91,13 +92,13 @@ class FakeBrain:
         return {"ok": self.ok, "label": "VLM", "detail": self.detail}
 
 
-def make_service(clock, runtime=None, frame_hub=None, brain=None, public_ok=True):
+def make_service(clock, runtime=None, frame_hub=None, brain=None, public_ok=True, bot=None):
     return IncidentMonitorService(
         FakeStore(),
         runtime or FakeRuntime(),
         frame_hub or FakeFrameHub(),
         brain or FakeBrain(),
-        FakeBot(),
+        bot or FakeBot(),
         now=clock.now,
         sleep=lambda seconds: None,
         check_interval_seconds=1.0,
@@ -192,6 +193,49 @@ class IncidentMonitorTests(unittest.TestCase):
         self.assertIn("长时间没有看到人", service.bot.messages[0][1])
         self.assertIn("摄像头", service.bot.messages[0][1])
         self.assertEqual(service.store.events[-1]["type"], "incident_no_person")
+
+    def test_no_person_recovery_sends_resolved_message(self):
+        clock = FakeClock()
+        runtime = FakeRuntime(target_count=0, last_seen_time="2026-07-01 09:50:00")
+        service = make_service(clock, runtime=runtime)
+
+        service.check_once()
+        clock.advance(31)
+        service.check_once()
+        runtime.state.update(target_count=1)
+        service.check_once()
+
+        self.assertEqual(len(service.bot.messages), 2)
+        self.assertEqual(service.store.events[-1]["type"], "incident_no_person_recovered")
+
+    def test_alert_event_records_webhook_success(self):
+        clock = FakeClock()
+        service = make_service(clock, runtime=FakeRuntime(camera_ok=False, camera_message="read failed"))
+
+        service.check_once()
+        clock.advance(6)
+        service.check_once()
+
+        self.assertEqual(service.store.events[-1]["data"]["notify_ok"], True)
+        self.assertEqual(service.store.events[-1]["data"]["notify_detail"], "ok")
+
+    def test_alert_event_records_webhook_failure_summary(self):
+        clock = FakeClock()
+        bot = FakeBot(response={"code": 19001, "msg": "bad webhook"})
+        service = make_service(clock, runtime=FakeRuntime(camera_ok=False, camera_message="read failed"), bot=bot)
+
+        service.check_once()
+        clock.advance(6)
+        service.check_once()
+
+        self.assertEqual(service.store.events[-1]["data"]["notify_ok"], False)
+        self.assertIn("19001", service.store.events[-1]["data"]["notify_detail"])
+        self.assertIn("bad webhook", service.store.events[-1]["data"]["notify_detail"])
+
+    def test_default_no_person_threshold_is_practical_for_camera_movement(self):
+        import settings
+
+        self.assertLessEqual(settings.INCIDENT_NO_PERSON_SECONDS, 60.0)
 
 
 if __name__ == "__main__":

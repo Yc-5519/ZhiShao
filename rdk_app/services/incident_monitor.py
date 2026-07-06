@@ -218,10 +218,19 @@ class IncidentMonitorService:
             f"时间：{self.store.now_text()}\n"
             "提示：如果现场可能有危险，请优先电话或语音确认，再决定是否查看监控页面。"
         )
+        response = None
         try:
-            self.bot.send_webhook(title, content)
+            response = self.bot.send_webhook(title, content)
+        except Exception as exc:
+            response = {"error": str(exc)}
         finally:
-            self._record_event(event_type, message, level, {"condition": key})
+            notify_ok, notify_detail = self._webhook_result(response)
+            self._record_event(
+                event_type,
+                message,
+                level,
+                {"condition": key, "notify_ok": notify_ok, "notify_detail": notify_detail},
+            )
             if not recovered:
                 self.store.add_metrics(alerts_sent_count=1)
                 self._active.add(key)
@@ -229,6 +238,27 @@ class IncidentMonitorService:
             else:
                 self._active.discard(key)
                 self._last_alert_at.pop(key, None)
+
+    def _webhook_result(self, response):
+        if not isinstance(response, dict):
+            return False, "no response"
+        if response.get("ok") is True:
+            return True, "ok"
+        for key in ("code", "StatusCode"):
+            if key in response:
+                value = response.get(key)
+                try:
+                    ok = int(value) == 0
+                except (TypeError, ValueError):
+                    ok = False
+                if ok:
+                    return True, "ok"
+                message = response.get("msg") or response.get("message") or response.get("StatusMessage") or ""
+                detail = f"{key}={value} {message}".strip()
+                return False, detail[:160]
+        if "error" in response:
+            return False, str(response.get("error") or "error")[:160]
+        return False, "unexpected response"
 
     def _record_event(self, event_type, message, level, data):
         self.store.record_event(event_type, message, level, data)
