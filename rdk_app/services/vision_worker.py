@@ -5,7 +5,7 @@ import time
 import cv2
 import numpy as np
 
-from settings import BASE_DIR, CAMERA_HEIGHT, CAMERA_INDEX, CAMERA_WIDTH, FPS_BUFFER_SIZE
+from settings import BASE_DIR, CAMERA_HEIGHT, CAMERA_INDEX, CAMERA_WIDTH, FPS_BUFFER_SIZE, VISION_INFERENCE_MAX_FPS
 from services.fall_detector import FallDetector
 from services.pose_validator import PoseValidator
 from services.target_tracker import TargetTracker
@@ -50,6 +50,7 @@ class VisionWorker:
         self.is_moving = False
         self.smooth_tracks = {}
         self.smooth_alpha = 0.35
+        self.vision_frame_interval = 1.0 / max(1.0, float(VISION_INFERENCE_MAX_FPS or 1.0))
         self._load_model()
 
     def _load_model(self):
@@ -156,6 +157,7 @@ class VisionWorker:
     def _vision_loop(self):
         blank = self.frame_hub.blank_frame()
         while self.running:
+            loop_started = time.time()
             with self.raw_lock:
                 frame = None if self.latest_raw is None else self.latest_raw.copy()
             if frame is None:
@@ -184,6 +186,12 @@ class VisionWorker:
             except Exception as exc:
                 self.store.record_event("vision_error", "视觉线程异常。", "warning", {"error": str(exc)})
                 time.sleep(0.1)
+            self._sleep_until_next_vision_frame(loop_started)
+
+    def _sleep_until_next_vision_frame(self, loop_started):
+        remaining = self.vision_frame_interval - (time.time() - loop_started)
+        if remaining > 0:
+            time.sleep(remaining)
 
     def _smooth_targets(self, targets):
         now = time.time()

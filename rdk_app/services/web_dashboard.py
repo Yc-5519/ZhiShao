@@ -228,7 +228,7 @@ class WebDashboard:
           <button class="warn" onclick="showPrivacyModal()">临时确认真实画面</button>
           <button onclick="cmd('close_raw_view')">关闭真实画面</button>
         </div>
-        <div class="video"><img id="video" src="/video/skeleton" alt="脱敏看护画面"></div>
+        <div class="video"><img id="video" alt="脱敏看护画面"></div>
       </section>
     </div>
     <div class="side">
@@ -290,7 +290,32 @@ class WebDashboard:
   <script>
     const min = v => ((Number(v || 0) / 60).toFixed(1));
     const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    function switchVideo(kind){ document.getElementById('video').src='/video/'+kind+'?t='+Date.now(); }
+    let currentVideo = 'skeleton';
+    function videoUrl(kind){ return '/video/' + kind + '?t=' + Date.now(); }
+    function pauseVideo(message){
+      const img = document.getElementById('video');
+      img.removeAttribute('src');
+      img.dataset.paused = '1';
+      if(message) document.getElementById('stamp').textContent = message;
+    }
+    function resumeVideo(){
+      if(document.hidden) return;
+      const img = document.getElementById('video');
+      if(img.dataset.paused === '1' || !img.getAttribute('src')){
+        img.src = videoUrl(currentVideo);
+        img.dataset.paused = '0';
+      }
+    }
+    function switchVideo(kind){
+      currentVideo = kind;
+      if(document.hidden){
+        pauseVideo('页面在后台，视频已暂停');
+        return;
+      }
+      const img = document.getElementById('video');
+      img.src = videoUrl(kind);
+      img.dataset.paused = '0';
+    }
     function showPrivacyModal(){ document.getElementById('privacyAck').checked=false; document.getElementById('privacyModal').style.display='flex'; }
     function hidePrivacyModal(){ document.getElementById('privacyModal').style.display='none'; }
     async function confirmRawView(){
@@ -303,6 +328,7 @@ class WebDashboard:
     }
     let refreshing = false;
     async function refresh(){
+      if(document.hidden) return;
       if(refreshing) return;
       refreshing = true;
       try {
@@ -366,6 +392,17 @@ class WebDashboard:
       if(command === 'close_raw_view') switchVideo('skeleton');
       refresh();
     }
+    document.addEventListener('visibilitychange', () => {
+      if(document.hidden){
+        pauseVideo('页面在后台，视频已暂停');
+      } else {
+        resumeVideo();
+        refresh();
+      }
+    });
+    window.addEventListener('pagehide', () => pauseVideo());
+    window.addEventListener('focus', () => { resumeVideo(); refresh(); });
+    switchVideo('skeleton');
     refresh(); setInterval(refresh,3000);
   </script>
 </body>

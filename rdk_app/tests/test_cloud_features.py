@@ -173,6 +173,16 @@ class CloudFeatureTests(unittest.TestCase):
         self.assertEqual(first, second)
         app.get_video_frame.assert_called_once_with("skeleton")
 
+    def test_dashboard_pauses_video_stream_when_page_hidden(self):
+        app = SimpleNamespace(status_payload=mock.Mock(return_value={"ok": True}))
+        dashboard = web_dashboard.WebDashboard(app)
+        html = dashboard._html()
+
+        self.assertIn("document.addEventListener('visibilitychange'", html)
+        self.assertIn("removeAttribute('src')", html)
+        self.assertIn("switchVideo('skeleton');", html)
+        self.assertNotIn('src="/video/skeleton"', html)
+
 
 class StoreAccessLogTests(unittest.TestCase):
     def test_access_summary_uses_existing_events_without_sensitive_values(self):

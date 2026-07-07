@@ -26,6 +26,7 @@ sys.modules.setdefault("serial", SimpleNamespace(Serial=lambda *args, **kwargs: 
 
 from services.target_tracker import TargetTracker
 import services.ptz_service as ptz_service
+import settings
 from services.ptz_service import PTZService
 
 
@@ -48,6 +49,14 @@ def target(cx, cy=240, area=16000, track_id=None, appearance=None):
 
 
 class TargetTrackerFollowTests(unittest.TestCase):
+    def test_default_follow_tuning_prefers_smooth_demo_behavior(self):
+        self.assertEqual(settings.VISION_INFERENCE_MAX_FPS, 10.0)
+        self.assertEqual(settings.PTZ_DEADZONE_X, 90)
+        self.assertEqual(settings.PTZ_DEADZONE_Y, 75)
+        self.assertEqual(settings.PTZ_MAX_STEP_X, 6.0)
+        self.assertEqual(settings.PTZ_MAX_STEP_Y, 4.0)
+        self.assertEqual(settings.TARGET_LOCK_REACQUIRE_SECONDS, 8.0)
+
     def test_lock_reacquires_same_person_after_short_disappearance(self):
         tracker = TargetTracker()
         first = target(320, appearance=[0.9, 0.1, 0.0])
