@@ -49,6 +49,22 @@ class PoseValidator:
     def _count(self, kpts, indices, threshold):
         return sum(1 for idx in indices if kpts[idx][0] > 0 and kpts[idx][1] > 0 and kpts[idx][2] >= threshold)
 
+    def _fall_like_torso(self, kpts, box, threshold):
+        if self._count(kpts, [5, 6], threshold) < 2 or self._count(kpts, [11, 12], threshold) < 2:
+            return False
+        xmin, ymin, xmax, ymax = box
+        box_w, box_h = xmax - xmin, ymax - ymin
+        if box_w <= 0 or box_h <= 0:
+            return False
+        sl, sr = kpts[5], kpts[6]
+        hl, hr = kpts[11], kpts[12]
+        shoulder_x, shoulder_y = (sl[0] + sr[0]) / 2, (sl[1] + sr[1]) / 2
+        hip_x, hip_y = (hl[0] + hr[0]) / 2, (hl[1] + hr[1]) / 2
+        raw_angle = abs(np.degrees(np.arctan2(hip_y - shoulder_y, hip_x - shoulder_x)))
+        spine_angle = raw_angle if raw_angle <= 90 else 180 - raw_angle
+        low_position = ymax > CAMERA_HEIGHT * 0.62 or max(shoulder_y, hip_y) > CAMERA_HEIGHT * 0.58
+        return bool(spine_angle < 32 and box_w > box_h * 1.2 and low_position)
+
     def _screen_like(self, frame, box):
         xmin, ymin, xmax, ymax = [int(v) for v in box]
         h, w = frame.shape[:2]
@@ -125,8 +141,10 @@ class PoseValidator:
                 reject("人体框尺寸异常")
                 continue
             cleaned = self._clean_keypoints(kpts, cfg["kpt_score"])
+            fall_cleaned = self._clean_keypoints(kpts, cfg["fall_kpt_score"])
+            fall_torso = self._fall_like_torso(fall_cleaned, (xmin, ymin, xmax, ymax), cfg["fall_kpt_score"])
             valid_indices = self._valid_indices(cleaned, cfg["kpt_score"])
-            if len(valid_indices) < cfg["min_kpts"]:
+            if len(valid_indices) < cfg["min_kpts"] and not fall_torso:
                 reject("关键点不足")
                 continue
             head = self._count(cleaned, range(0, 5), cfg["kpt_score"])
@@ -135,7 +153,7 @@ class PoseValidator:
             limbs = self._count(cleaned, [7, 8, 9, 10, 13, 14, 15, 16], cfg["kpt_score"])
             upper_body = shoulders >= 1 and (head + limbs) >= 2
             full_body = shoulders >= 1 and hips >= 1 and (head + hips + limbs) >= 4
-            if not (upper_body or full_body):
+            if not (upper_body or full_body or fall_torso):
                 reject("人体结构不完整")
                 continue
             if self._screen_like(frame, (xmin, ymin, xmax, ymax)):
@@ -144,7 +162,7 @@ class PoseValidator:
             valid_kpts = cleaned[valid_indices]
             kxmin, kymin = np.min(valid_kpts[:, :2], axis=0)
             kxmax, kymax = np.max(valid_kpts[:, :2], axis=0)
-            if ((kxmax - kxmin) * (kymax - kymin)) / max(area, 1.0) < 0.05:
+            if ((kxmax - kxmin) * (kymax - kymin)) / max(area, 1.0) < 0.05 and not fall_torso:
                 reject("关键点分布异常")
                 continue
             fall_points = self._count(cleaned, range(17), cfg["fall_kpt_score"])
@@ -154,6 +172,7 @@ class PoseValidator:
                 and self._count(cleaned, range(0, 5), cfg["fall_kpt_score"]) >= 1
                 and self._count(cleaned, [13, 14, 15, 16], cfg["fall_kpt_score"]) >= 1
             )
+            fall_core = fall_core or fall_torso
             targets.append(
                 {
                     "cx": int((xmin + xmax) / 2),
@@ -165,7 +184,7 @@ class PoseValidator:
                     "score": score,
                     "kpts": cleaned,
                     "appearance": self._appearance(frame, (xmin, ymin, xmax, ymax)),
-                    "fall_eligible": bool(fall_core and fall_points >= 8),
+                    "fall_eligible": bool(fall_core and (fall_points >= 8 or fall_torso)),
                     "mode": self.mode,
                 }
             )

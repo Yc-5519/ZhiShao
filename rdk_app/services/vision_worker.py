@@ -175,7 +175,10 @@ class VisionWorker:
                 skeleton = self._draw_skeleton(frame, targets, active, follow_target, risk_targets)
                 self.frame_hub.update_skeleton(skeleton)
                 if follow_target:
-                    self.ptz_service.follow(follow_target)
+                    if risk_targets and follow_target in risk_targets:
+                        self.ptz_service.focus_fall_target(follow_target)
+                    else:
+                        self.ptz_service.follow(follow_target)
                     self._update_motion(follow_target)
                 else:
                     self.ptz_service.on_no_target()

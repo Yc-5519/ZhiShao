@@ -55,9 +55,10 @@ class FakeApp:
     def recent_events_text(self): return "最近事件"
     def privacy_status_text(self): return "隐私状态"
     def self_check(self): return "自检正常"
+    def reassurance_text(self): return "当前能看到可信人体目标，安全状态平稳。\n今天出现过高风险提醒，请优先确认父母是否安好。"
     def manual(self): return '完整说明书'
     def visual_question_answer(self, _q): return {"answer": "正在轻微活动", "need_image": True}
-    def make_reply_gif(self): return ""
+    def make_reply_gif(self): return "temp_reply.gif"
 
     def handle_command(self, command, source=""):
         self.commands.append((command, source))
@@ -79,7 +80,7 @@ class FakeBot:
     def reply_rich_post(self, message_id, title, blocks):
         self.posts.append((message_id, title, blocks)); return {"code": 0}
 
-    def upload_image(self, _path): return None
+    def upload_image(self, _path): return "img_test_key"
 
 
 class CardAction:
@@ -132,6 +133,17 @@ class FeishuCardTests(unittest.TestCase):
         self.service.handle_message(TextEvent('@智哨管家 菜单', message_id="txt-2"))
         self.assertEqual(len(self.bot.cards), 2)
         self.assertEqual(len(self.app.commands), 0)
+
+    def test_safety_confirmation_replies_with_current_state_and_gif(self):
+        self.service.handle_message(TextEvent("@智哨管家 现在是否安全"))
+
+        self.assertEqual(len(self.bot.posts), 1)
+        _msg_id, _title, blocks = self.bot.posts[0]
+        text = blocks[0][0]["text"]
+        self.assertIn("当前能看到可信人体目标", text.splitlines()[0])
+        self.assertIn("今天出现过高风险提醒", text)
+        self.assertEqual(blocks[-1][0]["tag"], "img")
+        self.assertEqual(blocks[-1][0]["image_key"], "img_test_key")
 
     def test_all_card_commands_execute_without_exception(self):
         for command in sorted(ALL_CARD_COMMANDS):

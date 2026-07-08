@@ -40,7 +40,13 @@ def acquire_single_instance_lock():
 
 
 def send_fall_alert(bot_client, store):
-    def _send(description, location):
+    def _send(description, location, evidence_path=None):
+        image_key = ""
+        if evidence_path:
+            try:
+                image_key = bot_client.upload_image(evidence_path) or ""
+            except Exception as exc:
+                print(f"[WARN] [飞书告警] 骨架证据图上传失败: {exc}")
         text = (
             "【智哨安心提醒】\n\n"
             f"发生时间：{store.now_text()}\n"
@@ -49,7 +55,7 @@ def send_fall_alert(bot_client, store):
             "看护建议：建议先电话或语音确认父母是否安好；如果联系不上，再通过安心看护页临时查看真实画面。\n"
             "隐私说明：默认不主动推送真实画面，优先使用状态结论和脱敏证据。"
         )
-        bot_client.send_webhook("智哨安心提醒", text)
+        bot_client.send_webhook("智哨安心提醒", text, image_key=image_key)
         store.add_metrics(alerts_sent_count=1)
         print("[INFO] [飞书告警] 安心提醒已推送。")
 

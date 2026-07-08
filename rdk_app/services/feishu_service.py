@@ -22,6 +22,10 @@ class FeishuService:
         "他现在在做什么", "她现在在做什么", "他们现在在做什么", "现在在做什么",
         "在干嘛", "在干啥", "正在干什么", "在做什么", "在活动吗", "看看他在做什么",
     ]
+    SAFETY_CONFIRMATION_KEYWORDS = [
+        "我想确认一下", "确认一下", "是否安全", "现在情况", "安全吗", "安全么",
+        "现在安全吗", "现在安全么", "有没有异常",
+    ]
 
     def __init__(self, app_service, bot):
         self.app_service = app_service
@@ -183,6 +187,10 @@ class FeishuService:
             self._reply_control_card(msg_id)
             return
 
+        if any(keyword in question for keyword in self.SAFETY_CONFIRMATION_KEYWORDS):
+            self._reply_reassurance(msg_id)
+            return
+
         if self._is_visual_question(question):
             self._reply_visual_question(msg_id, question)
             return
@@ -227,7 +235,7 @@ class FeishuService:
                 lambda _q: self.app_service.current_activity_text(),
             ),
             (
-                ["我想确认一下", "确认一下", "是否安全", "现在情况", "安全吗", "安全么", "现在安全吗", "现在安全么", "有没有异常"],
+                self.SAFETY_CONFIRMATION_KEYWORDS,
                 lambda _q: self.app_service.reassurance_text(),
             ),
             (["临时查看真实画面", "开启真实画面", "打开真实画面"], lambda _q: self._command("open_raw_view")),
@@ -257,6 +265,20 @@ class FeishuService:
 
     def _is_visual_question(self, question):
         return any(keyword in question for keyword in self.VISUAL_QUESTION_KEYWORDS)
+
+    def _reply_reassurance(self, msg_id):
+        answer = self.app_service.reassurance_text()
+        gif_path = self.app_service.make_reply_gif()
+        image_key = self.bot.upload_image(gif_path) if gif_path else None
+        blocks = [
+            [{"tag": "text", "text": f"{answer}\n\n"}],
+            [{"tag": "text", "text": "隐私保护：如有可用证据，下面只展示脱敏骨架 GIF，不展示真实摄像头画面。"}],
+        ]
+        if image_key:
+            blocks.append([{"tag": "img", "image_key": image_key}])
+        resp = self.bot.reply_rich_post(msg_id, "智哨管家回复", blocks)
+        if not resp or resp.get("code", 0) != 0:
+            self.bot.reply_text(msg_id, f"{answer}\n\n隐私保护：本次只使用状态和脱敏骨架信息，不展示真实摄像头画面。")
 
     def _reply_visual_question(self, msg_id, question):
         result = self.app_service.visual_question_answer(question)

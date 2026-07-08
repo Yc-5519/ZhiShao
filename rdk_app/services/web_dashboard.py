@@ -11,6 +11,7 @@ from settings import (
     PUBLIC_MONITOR_URL,
     WEB_RAW_JPEG_QUALITY,
     WEB_SKELETON_JPEG_QUALITY,
+    WEB_SNAPSHOT_REFRESH_SECONDS,
     WEB_VIDEO_FRAME_INTERVAL_SECONDS,
 )
 
@@ -119,6 +120,15 @@ class WebDashboard:
             resp.headers["X-Accel-Buffering"] = "no"
             return resp
 
+        @self.flask.route("/snapshot/<source>.jpg")
+        def snapshot(source):
+            if source not in {"raw", "skeleton"}:
+                return Response(status=404)
+            resp = Response(self._jpeg_bytes(source), mimetype="image/jpeg")
+            resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            resp.headers["Pragma"] = "no-cache"
+            return resp
+
         @self.flask.route("/api/status")
         def status():
             return jsonify(self.app_service.status_payload(compact=True))
@@ -208,7 +218,39 @@ class WebDashboard:
     .modalActions { display:flex; gap:10px; justify-content:flex-end; margin-top:16px; flex-wrap:wrap; }
     .check { display:flex; gap:8px; align-items:flex-start; color:#dcebf0; margin-top:12px; line-height:1.5; }
     .check input { margin-top:4px; }
-    @media(max-width:900px){ html,body{height:auto;overflow:auto;} header{height:52px;} main{height:auto;display:grid;grid-template-columns:1fr;overflow:visible;} main > div:first-child, main > div:first-child > section{display:block;} .side{display:flex;overflow:visible;} .grid{grid-template-columns:repeat(2,minmax(0,1fr));} .video,.video img{min-height:300px;} .hero{grid-template-columns:1fr;} }
+    @media(max-width:900px){
+      html,body{height:auto;overflow-x:hidden;overflow-y:auto;}
+      body{width:100%;min-width:0;}
+      header{height:auto;min-height:48px;padding:8px 12px;position:sticky;top:0;z-index:10;}
+      h1{font-size:17px;}
+      .stamp{font-size:11px;max-width:45vw;overflow:hidden;text-overflow:ellipsis;}
+      main{height:auto;display:grid;grid-template-columns:1fr;gap:8px;padding:8px;overflow:visible;width:100%;max-width:100vw;}
+      main > div:first-child, main > div:first-child > section{display:block;min-width:0;width:100%;}
+      section{width:100%;min-width:0;padding:10px;border-radius:8px;}
+      .hero{grid-template-columns:1fr;gap:6px;}
+      .comfort{font-size:20px;}
+      .summary{font-size:12px;line-height:1.45;}
+      .badge{width:max-content;max-width:100%;white-space:normal;}
+      .toolbar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;}
+      .toolbar button:last-child{grid-column:1 / -1;}
+      .video{height:auto;aspect-ratio:4/3;min-height:0;margin-top:8px;}
+      .video img{height:100%;min-height:0;object-fit:contain;}
+      .side{display:flex;flex-direction:column;gap:8px;overflow:visible;width:100%;min-width:0;}
+      .grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+      .metric{min-height:58px;padding:8px;}
+      .metric b{font-size:20px;}
+      .lockRow,.statusRow{display:grid;grid-template-columns:minmax(78px,.42fr) minmax(0,1fr);align-items:center;gap:8px;font-size:13px;}
+      .lockRow span:first-child,.statusRow span:first-child{white-space:normal;}
+      .lockRow b,.statusRow b{text-align:right;word-break:break-word;line-height:1.35;}
+      .lockReason{font-size:13px;line-height:1.45;}
+      .buttons{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;}
+      button{min-height:38px;font-size:13px;padding:0 6px;line-height:1.2;}
+      .events{max-height:220px;overflow:auto;}
+      .event{font-size:13px;line-height:1.35;}
+      .modalBack{align-items:flex-end;padding:12px;}
+      .modal{max-height:88vh;overflow:auto;padding:14px;}
+      .modalActions{display:grid;grid-template-columns:1fr 1fr;}
+    }
   </style>
 </head>
 <body>
@@ -290,8 +332,21 @@ class WebDashboard:
   <script>
     const min = v => ((Number(v || 0) / 60).toFixed(1));
     const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const SNAPSHOT_REFRESH_MS = __SNAPSHOT_REFRESH_MS__;
     let currentVideo = 'skeleton';
-    function videoUrl(kind){ return '/video/' + kind + '?t=' + Date.now(); }
+    let snapshotTimer = null;
+    function videoUrl(kind){ return '/snapshot/' + kind + '.jpg?t=' + Date.now(); }
+    function refreshSnapshot(){
+      if(document.hidden) return;
+      const img = document.getElementById('video');
+      if(img.dataset.paused === '1') return;
+      img.src = videoUrl(currentVideo);
+    }
+    function startSnapshotLoop(){
+      if(snapshotTimer) clearInterval(snapshotTimer);
+      snapshotTimer = setInterval(refreshSnapshot, SNAPSHOT_REFRESH_MS);
+      refreshSnapshot();
+    }
     function pauseVideo(message){
       const img = document.getElementById('video');
       img.removeAttribute('src');
@@ -302,8 +357,8 @@ class WebDashboard:
       if(document.hidden) return;
       const img = document.getElementById('video');
       if(img.dataset.paused === '1' || !img.getAttribute('src')){
-        img.src = videoUrl(currentVideo);
         img.dataset.paused = '0';
+        refreshSnapshot();
       }
     }
     function switchVideo(kind){
@@ -313,8 +368,8 @@ class WebDashboard:
         return;
       }
       const img = document.getElementById('video');
-      img.src = videoUrl(kind);
       img.dataset.paused = '0';
+      refreshSnapshot();
     }
     function showPrivacyModal(){ document.getElementById('privacyAck').checked=false; document.getElementById('privacyModal').style.display='flex'; }
     function hidePrivacyModal(){ document.getElementById('privacyModal').style.display='none'; }
@@ -403,11 +458,12 @@ class WebDashboard:
     window.addEventListener('pagehide', () => pauseVideo());
     window.addEventListener('focus', () => { resumeVideo(); refresh(); });
     switchVideo('skeleton');
+    startSnapshotLoop();
     refresh(); setInterval(refresh,3000);
   </script>
 </body>
 </html>
-        """
+        """.replace("__SNAPSHOT_REFRESH_MS__", str(max(250, int(WEB_SNAPSHOT_REFRESH_SECONDS * 1000))))
 
     def start(self):
         def worker():

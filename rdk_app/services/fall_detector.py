@@ -84,8 +84,6 @@ class FallDetector:
 
         head_y = self._valid_y(kpts, range(0, 5), score)
         leg_y = self._valid_y(kpts, [13, 14, 15, 16], score)
-        if not head_y or not leg_y:
-            return None
 
         sl, sr = kpts[5], kpts[6]
         hl, hr = kpts[11], kpts[12]
@@ -97,7 +95,7 @@ class FallDetector:
         xmin, ymin, xmax, ymax = target["box"]
         box_w, box_h = xmax - xmin, ymax - ymin
         horizontal = spine_angle < cfg["spine"] and box_w > box_h * cfg["ratio"]
-        inverted = max(head_y) > hip_y + box_h * 0.12
+        inverted = bool(head_y and max(head_y) > hip_y + box_h * 0.12)
         low_position = ymax > CAMERA_HEIGHT * cfg["low_y"] or hip_y > CAMERA_HEIGHT * (cfg["low_y"] - 0.08)
 
         return {
@@ -264,7 +262,7 @@ class FallDetector:
                     "critical",
                     {"description": description, "location": location, "fall_type": fall_type, "evidence_path": evidence_path},
                 )
-                self.alert_callback(description, location)
+                self.alert_callback(description, location, evidence_path=evidence_path)
             elif result:
                 self.state = "REJECTED"
                 self.store.add_metrics(rejected_fall_count=1)

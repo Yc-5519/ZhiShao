@@ -29,8 +29,11 @@ import services.web_dashboard as web_dashboard
 
 
 class FakeRuntime:
+    def __init__(self, **overrides):
+        self.overrides = overrides
+
     def snapshot(self):
-        return {
+        data = {
             "running": True,
             "camera_ok": True,
             "camera_message": "正常",
@@ -48,17 +51,24 @@ class FakeRuntime:
             "raw_pose_count": 1,
             "last_seen_time": "刚刚",
         }
+        data.update(self.overrides)
+        return data
 
 
 class FakeStore:
+    def __init__(self, **metric_overrides):
+        self.metric_overrides = metric_overrides
+
     def get_metrics(self):
-        return {
+        metrics = {
             "seen_seconds": 600,
             "active_seconds": 300,
             "suspect_fall_count": 0,
             "confirmed_fall_count": 0,
             "last_seen_time": "刚刚",
         }
+        metrics.update(self.metric_overrides)
+        return metrics
 
     def list_events(self, limit=8, date=None):
         return []
@@ -110,10 +120,10 @@ class FakeBrain:
 
 
 class CloudFeatureTests(unittest.TestCase):
-    def make_app(self, brain=None):
+    def make_app(self, brain=None, store=None, runtime=None):
         return AppService(
-            FakeStore(),
-            FakeRuntime(),
+            store or FakeStore(),
+            runtime or FakeRuntime(),
             FakeFrameHub(),
             FakeVision(),
             FakePtz(),
@@ -121,6 +131,15 @@ class CloudFeatureTests(unittest.TestCase):
             brain or FakeBrain(),
             SimpleNamespace(),
         )
+
+    def test_family_summary_reports_current_state_before_today_high_risk(self):
+        app = self.make_app(store=FakeStore(confirmed_fall_count=1), runtime=FakeRuntime(target_count=1))
+
+        text = app.family_summary()
+
+        first_line, second_line, *_ = text.splitlines()
+        self.assertIn("当前能看到可信人体目标", first_line)
+        self.assertIn("今天出现过高风险提醒", second_line)
 
     def test_monitor_url_prefers_configured_public_url(self):
         with mock.patch.object(web_dashboard, "PUBLIC_MONITOR_URL", "https://care.example.com/"):
@@ -180,8 +199,32 @@ class CloudFeatureTests(unittest.TestCase):
 
         self.assertIn("document.addEventListener('visibilitychange'", html)
         self.assertIn("removeAttribute('src')", html)
-        self.assertIn("switchVideo('skeleton');", html)
+        self.assertIn("startSnapshotLoop();", html)
         self.assertNotIn('src="/video/skeleton"', html)
+
+    def test_dashboard_uses_snapshot_endpoint_for_default_lightweight_video(self):
+        frame = np.zeros((24, 32, 3), dtype=np.uint8)
+        app = SimpleNamespace(get_video_frame=mock.Mock(return_value=frame), status_payload=mock.Mock(return_value={"ok": True}))
+        dashboard = web_dashboard.WebDashboard(app)
+
+        with dashboard.flask.test_client() as client:
+            response = client.get("/snapshot/skeleton.jpg")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content_type, "image/jpeg")
+        self.assertTrue(response.data.startswith(b"\xff\xd8"))
+        self.assertIn("/snapshot/", dashboard._html())
+
+    def test_mobile_dashboard_stacks_sections_in_single_column(self):
+        app = SimpleNamespace(status_payload=mock.Mock(return_value={"ok": True}))
+        dashboard = web_dashboard.WebDashboard(app)
+        html = dashboard._html()
+
+        self.assertIn("@media(max-width:900px)", html)
+        self.assertIn("overflow-x:hidden", html)
+        self.assertIn(".side{display:flex;flex-direction:column", html)
+        self.assertIn(".buttons{grid-template-columns:repeat(3,minmax(0,1fr))", html)
+        self.assertIn(".events{max-height:220px", html)
 
 
 class StoreAccessLogTests(unittest.TestCase):

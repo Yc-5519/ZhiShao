@@ -50,12 +50,12 @@ def target(cx, cy=240, area=16000, track_id=None, appearance=None):
 
 class TargetTrackerFollowTests(unittest.TestCase):
     def test_default_follow_tuning_prefers_smooth_demo_behavior(self):
-        self.assertEqual(settings.VISION_INFERENCE_MAX_FPS, 10.0)
+        self.assertEqual(settings.VISION_INFERENCE_MAX_FPS, 8.0)
         self.assertEqual(settings.PTZ_DEADZONE_X, 90)
         self.assertEqual(settings.PTZ_DEADZONE_Y, 75)
         self.assertEqual(settings.PTZ_MAX_STEP_X, 6.0)
         self.assertEqual(settings.PTZ_MAX_STEP_Y, 4.0)
-        self.assertEqual(settings.TARGET_LOCK_REACQUIRE_SECONDS, 8.0)
+        self.assertEqual(settings.TARGET_LOCK_REACQUIRE_SECONDS, 18.0)
 
     def test_lock_reacquires_same_person_after_short_disappearance(self):
         tracker = TargetTracker()
@@ -83,6 +83,54 @@ class TargetTrackerFollowTests(unittest.TestCase):
         self.assertIsNotNone(active)
         self.assertIsNone(tracker.ptz_follow_target)
         self.assertIn("锁定", reason)
+
+
+    def test_locked_target_loss_message_does_not_call_returning_target_stranger(self):
+        tracker = TargetTracker()
+        first = target(320, appearance=[0.9, 0.1, 0.0])
+        tracker.choose([first])
+        ok, _reply = tracker.lock_current()
+        self.assertTrue(ok)
+
+        tracker.last_locked_seen = time.time() - 4.0
+        active, reason = tracker.choose([])
+
+        self.assertIsNone(active)
+        self.assertNotIn("陌生人", reason)
+        self.assertNotIn("生人", reason)
+
+
+    def test_locked_single_person_keeps_original_id_after_brief_gap(self):
+        tracker = TargetTracker()
+        tracker.choose([target(320, appearance=[0.8, 0.2, 0.0])])
+        ok, _reply = tracker.lock_current()
+        self.assertTrue(ok)
+        locked_id = tracker.locked_track_id
+
+        tracker.choose([])
+        tracker.tracks = {}
+        tracker.last_locked_seen = time.time() - 2.0
+        active, _reason = tracker.choose([target(500, appearance=[0.7, 0.3, 0.0])])
+
+        self.assertIsNotNone(active)
+        self.assertEqual(active.get("track_id"), locked_id)
+        self.assertEqual(tracker.locked_track_id, locked_id)
+
+    def test_different_person_is_not_reused_as_locked_id_after_brief_gap(self):
+        tracker = TargetTracker()
+        tracker.choose([target(120, appearance=[1.0, 0.0, 0.0])])
+        ok, _reply = tracker.lock_current()
+        self.assertTrue(ok)
+        locked_id = tracker.locked_track_id
+
+        tracker.choose([])
+        tracker.tracks = {}
+        tracker.last_locked_seen = time.time() - 2.0
+        active, _reason = tracker.choose([target(560, appearance=[0.0, 1.0, 0.0])])
+
+        self.assertIsNone(active)
+        self.assertIsNone(tracker.ptz_follow_target)
+        self.assertEqual(tracker.locked_track_id, locked_id)
 
 
 class FakePTZ:
@@ -214,6 +262,92 @@ class PTZFollowControlTests(unittest.TestCase):
 
         self.assertEqual(self.fake_ptz.center_calls, 1)
         self.assertEqual(runtime.values["ptz_mode"], "回中等待")
+
+
+    def test_lost_target_immediately_continues_last_seen_direction(self):
+        runtime = RuntimeStub()
+        service = PTZService(runtime)
+        service.last_calc = 100.0
+        service.last_cmd = 0.0
+        service.kf_enabled = False
+
+        with mock.patch("services.ptz_service.time.time", return_value=100.0):
+            service.follow(target(620))
+
+        first_pan = self.fake_ptz.current_pan
+        with mock.patch("services.ptz_service.time.time", return_value=104.0):
+            service.on_no_target()
+
+        self.assertLess(self.fake_ptz.current_pan, first_pan)
+
+    def test_lost_target_uses_last_screen_side_even_before_servo_moved(self):
+        runtime = RuntimeStub()
+        service = PTZService(runtime)
+        service.last_calc = 100.0
+        service.last_cmd = 0.0
+        service.kf_enabled = False
+
+        with mock.patch("services.ptz_service.time.time", return_value=100.0):
+            service.follow(target(350))
+
+        self.assertFalse(self.fake_ptz.pan_commands)
+        first_pan = self.fake_ptz.current_pan
+        with mock.patch("services.ptz_service.time.time", return_value=101.0):
+            service.on_no_target()
+
+        self.assertLess(self.fake_ptz.current_pan, first_pan)
+
+    def test_fall_focus_tilts_down_without_horizontal_switch(self):
+        runtime = RuntimeStub()
+        service = PTZService(runtime)
+        start_pan = self.fake_ptz.current_pan
+        start_tilt = self.fake_ptz.current_tilt
+
+        service.focus_fall_target(target(600, cy=430))
+
+        self.assertEqual(self.fake_ptz.current_pan, start_pan)
+        self.assertGreater(self.fake_ptz.current_tilt, start_tilt)
+
+    def test_fall_focus_does_not_keep_tilting_when_target_is_not_low(self):
+        runtime = RuntimeStub()
+        service = PTZService(runtime)
+        start_pan = self.fake_ptz.current_pan
+        start_tilt = self.fake_ptz.current_tilt
+
+        service.focus_fall_target(target(330, cy=230))
+
+        self.assertEqual(self.fake_ptz.current_pan, start_pan)
+        self.assertEqual(self.fake_ptz.current_tilt, start_tilt)
+        self.assertEqual(runtime.values["ptz_mode"], "摔倒风险观察")
+
+    def test_fall_focus_temporarily_blocks_no_target_side_search(self):
+        runtime = RuntimeStub()
+        service = PTZService(runtime)
+        service.last_target_direction = 1
+
+        with mock.patch("services.ptz_service.time.time", return_value=100.0):
+            service.focus_fall_target(target(330, cy=430))
+        pan_after_focus = self.fake_ptz.current_pan
+
+        with mock.patch("services.ptz_service.time.time", return_value=101.0):
+            service.on_no_target()
+
+        self.assertEqual(self.fake_ptz.current_pan, pan_after_focus)
+        self.assertEqual(runtime.values["ptz_mode"], "摔倒风险保持")
+
+    def test_fall_focus_temporarily_blocks_normal_follow_pan(self):
+        runtime = RuntimeStub()
+        service = PTZService(runtime)
+
+        with mock.patch("services.ptz_service.time.time", return_value=100.0):
+            service.focus_fall_target(target(330, cy=430))
+        pan_after_focus = self.fake_ptz.current_pan
+
+        with mock.patch("services.ptz_service.time.time", return_value=101.0):
+            service.follow(target(620, cy=260))
+
+        self.assertEqual(self.fake_ptz.current_pan, pan_after_focus)
+        self.assertEqual(runtime.values["ptz_mode"], "摔倒风险保持")
 
 
 if __name__ == "__main__":

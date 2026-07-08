@@ -11,6 +11,10 @@ dist/
 .cache/
 .DS_Store
 Thumbs.db
+node_modules/
+tmp/
+video/
+tools/
 
 # Local working/output folders
 work/*
@@ -54,3 +58,5 @@ cloud_auth/instance/
 *.gif
 *.jpg
 *.jpeg
+*.mp4
+*.webp

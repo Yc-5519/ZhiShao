@@ -35,6 +35,9 @@ class PTZService:
         self.search_start = None
         self.search_centered = False
         self.manual_hold_until = 0.0
+        self.fall_hold_until = 0.0
+        self.last_pan_direction = 0
+        self.last_target_direction = 0
         self.kf_enabled = False
         self.x = np.zeros((4, 1), dtype=np.float32)
         self.p = np.eye(4, dtype=np.float32) * 10
@@ -73,9 +76,28 @@ class PTZService:
         )
         if delta_x:
             moved = ptz.set_pan(ptz.current_pan - delta_x) or moved
+            self.last_pan_direction = -1 if delta_x > 0 else 1
         if delta_y:
             moved = ptz.set_tilt(ptz.current_tilt + delta_y) or moved
         return moved
+
+    def _continue_last_direction_search(self, now):
+        direction = self.last_target_direction or self.last_pan_direction
+        if not direction:
+            return False
+        if now - self.last_cmd < PTZ_COMMAND_INTERVAL:
+            self.runtime.update(ptz_mode="按最后方向寻找")
+            return True
+        moved = ptz.set_pan(self._current_pan() + direction * PTZ_MAX_STEP_X)
+        if moved:
+            self.last_cmd = now
+        self.runtime.update(ptz_mode="按最后方向寻找")
+        return True
+
+    def _remember_target_side(self, cx):
+        error_x = float(cx) - CAMERA_WIDTH / 2
+        if abs(error_x) >= max(12.0, CAMERA_WIDTH * 0.03):
+            self.last_target_direction = -1 if error_x > 0 else 1
 
     def set_follow_enabled(self, enabled):
         self.follow_enabled = bool(enabled)
@@ -145,12 +167,16 @@ class PTZService:
         if not self.follow_enabled:
             return
         now = time.time()
+        if now < self.fall_hold_until:
+            self.runtime.update(ptz_mode="摔倒风险保持")
+            return
         if now < self.manual_hold_until:
             self.runtime.update(ptz_mode="手动微调保持")
             return
         dt = max(now - self.last_calc, 0.001)
         self.last_calc = now
         self.last_seen = now
+        self._remember_target_side(target["cx"])
         self.search_start = None
         self.search_centered = False
         if not self.kf_enabled:
@@ -167,12 +193,46 @@ class PTZService:
             self.last_cmd = now
             self.runtime.update(ptz_mode="自动跟随")
 
-    def on_no_target(self):
+    def focus_fall_target(self, target):
         if not self.follow_enabled:
             return
         now = time.time()
         if now < self.manual_hold_until:
+            self.runtime.update(ptz_mode="摔倒风险确认")
+            return
+        self.last_seen = now
+        self.fall_hold_until = now + 4.0
+        self.search_start = None
+        self.search_centered = False
+        self.kf_enabled = False
+        if now - self.last_cmd < PTZ_COMMAND_INTERVAL:
+            self.runtime.update(ptz_mode="摔倒风险确认")
+            return
+        offset_y = float(target.get("cy", CAMERA_HEIGHT)) - CAMERA_HEIGHT * 0.52
+        if offset_y <= CAMERA_HEIGHT * 0.08:
+            self.runtime.update(ptz_mode="摔倒风险观察")
+            return
+        tilt_step = max(PTZ_MIN_STEP_Y, min(PTZ_MAX_STEP_Y, offset_y * PTZ_KP_Y * 1.2))
+        target_tilt = min(125, self._current_tilt() + tilt_step)
+        moved = ptz.set_tilt(target_tilt)
+        if moved:
+            self.last_cmd = now
+        self.runtime.update(ptz_mode="摔倒风险确认")
+
+    def on_no_target(self):
+        if not self.follow_enabled:
+            return
+        now = time.time()
+        if now < self.fall_hold_until:
+            self.kf_enabled = False
+            self.search_start = None
+            self.runtime.update(ptz_mode="摔倒风险保持")
+            return
+        if now < self.manual_hold_until:
             self.runtime.update(ptz_mode="手动微调保持")
+            return
+        if self._continue_last_direction_search(now):
+            self.kf_enabled = False
             return
         if self.kf_enabled and now - self.last_seen <= PTZ_LOST_PREDICT_SECONDS:
             dt = max(now - self.last_calc, 0.001)
@@ -188,6 +248,11 @@ class PTZService:
             return
         no_target_elapsed = now - self.last_seen
         if no_target_elapsed < PTZ_NO_TARGET_SEARCH_DELAY_SECONDS:
+            if (self.last_target_direction or self.last_pan_direction) and no_target_elapsed > PTZ_LOST_PREDICT_SECONDS:
+                self.search_start = None
+                self.kf_enabled = False
+                self._continue_last_direction_search(now)
+                return
             self.search_start = None
             self.kf_enabled = False
             self.runtime.update(ptz_mode="等待目标经过")

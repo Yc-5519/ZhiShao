@@ -71,16 +71,21 @@ class AppService:
         last_seen = metrics.get("last_seen_time") or state.get("last_seen_time") or "今天暂未看到目标"
         target_count = int(state.get("target_count", 0) or 0)
         if state.get("fall_state") in ("SUSPECT", "VALIDATING"):
-            risk = "系统正在复核一个可能需要关心的姿态。"
-        elif int(metrics.get("confirmed_fall_count", 0) or 0):
-            risk = "今天出现过高风险提醒，请优先确认父母是否安好。"
-        elif int(metrics.get("suspect_fall_count", 0) or 0):
-            risk = "今天出现过疑似风险，系统已记录并保持关注。"
+            current = "当前有疑似风险，系统正在复核一个可能需要关心的姿态。"
+        elif state.get("fall_state") == "CONFIRMED":
+            current = "当前处于高风险提醒状态，请立即确认父母是否安全。"
         elif target_count:
-            risk = "当前能看到可信人体目标，安全状态平稳。"
+            current = "当前能看到可信人体目标，安全状态平稳。"
         else:
-            risk = "当前暂未看到目标，设备仍在线守护。"
-        return f"{risk}\n最近看到目标：{last_seen}"
+            current = "当前暂未看到目标，设备仍在线守护。"
+
+        if int(metrics.get("confirmed_fall_count", 0) or 0):
+            history = "今天出现过高风险提醒，请优先确认父母是否安好。"
+        elif int(metrics.get("suspect_fall_count", 0) or 0):
+            history = "今天出现过疑似风险，系统已记录并保持关注。"
+        else:
+            history = "今天暂未记录高风险提醒。"
+        return f"{current}\n{history}\n最近看到目标：{last_seen}"
 
     def status_text(self):
         metrics = self.store.get_metrics()

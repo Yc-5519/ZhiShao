@@ -66,6 +66,19 @@ class TargetTracker:
         now = time.time()
         self.tracks = {tid: t for tid, t in self.tracks.items() if now - t.get("last_seen", 0) <= self.max_age}
         active_id = self.active_target.get("track_id") if self.active_target else None
+        if (
+            self.locked_name
+            and self.locked_track_id is not None
+            and self.last_locked_snapshot
+            and len(targets) == 1
+            and now - self.last_locked_seen <= self.lock_reacquire_seconds
+        ):
+            target = targets[0]
+            if self._is_same_locked_candidate(target):
+                target["track_id"] = self.locked_track_id
+                target["_reacquired_locked"] = True
+                self.tracks[self.locked_track_id] = self._snapshot(target)
+                return targets
         if len(targets) == 1 and active_id in self.tracks:
             target = targets[0]
             cost = self._cost(self.tracks[active_id], target)
@@ -158,7 +171,7 @@ class TargetTracker:
                 )
                 self.last_locked_snapshot = self._snapshot(target)
                 self.last_locked_seen = time.time()
-                self.lock_state = "身体轨迹锁定"
+                self.lock_state = "短时重识别锁定" if target.get("_reacquired_locked") else "身体轨迹锁定"
                 self.active_target = target
                 self.ptz_follow_target = target
                 self.follow_reason = f"正在跟随锁定对象：轨迹 ID={self.locked_track_id}"
@@ -168,7 +181,7 @@ class TargetTracker:
             candidates = [target for target in targets if self._is_same_locked_candidate(target)]
             if len(candidates) == 1:
                 candidate = candidates[0]
-                self.locked_track_id = candidate.get("track_id")
+                candidate["track_id"] = self.locked_track_id
                 self.cloth_score = self._appearance_similarity(self.last_locked_snapshot.get("appearance"), candidate.get("appearance"))
                 self.last_locked_snapshot = self._snapshot(candidate)
                 self.last_locked_seen = time.time()
@@ -180,8 +193,8 @@ class TargetTracker:
 
         self.active_target = None
         self.ptz_follow_target = None
-        self.lock_state = "锁定目标丢失"
-        self.follow_reason = "未跟随：锁定对象丢失，系统不会盲目切到陌生人"
+        self.lock_state = "锁定目标暂时离开画面"
+        self.follow_reason = "未跟随：锁定对象暂时丢失，正在等待其回到画面，系统不会盲目切换目标"
         return None, self.follow_reason
 
     def _is_same_locked_candidate(self, candidate):
@@ -197,6 +210,8 @@ class TargetTracker:
         area_ratio = abs(np.log(max(float(candidate["area"]), 1.0) / max(float(self.last_locked_snapshot["area"]), 1.0)))
         cloth = self._appearance_similarity(self.last_locked_snapshot.get("appearance"), candidate.get("appearance"))
         overlap = self._iou(self.last_locked_snapshot.get("box"), candidate.get("box"))
+        if elapsed <= 5.0 and cloth >= 0.72 and dist < CAMERA_WIDTH * 0.55 and area_ratio < 0.70:
+            return True
         if overlap >= 0.18 and dist < CAMERA_WIDTH * 0.32 and cloth >= 0.65:
             return True
         return bool(cloth >= 0.78 and dist < CAMERA_WIDTH * 0.35 and area_ratio < 0.50)
