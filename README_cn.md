@@ -159,25 +159,6 @@ RDK brain_client.py
 
 对于摔倒相关事件，系统优先提醒家属确认安全，并提供简洁状态和可用的脱敏证据。
 
-## 部署注意事项
-
-以下内容不得提交到 Git：
-
-```text
-.env
-logs/
-*.db
-*.bin
-*.png
-*.gif
-私钥
-DashScope Key
-飞书 Token 或 Webhook
-网页登录密码
-```
-
-YOLOv8 Pose BPU 模型文件应保留在 RDK 设备正式目录中，不进入代码仓库。
-
 ## 主要文档
 
 ```text

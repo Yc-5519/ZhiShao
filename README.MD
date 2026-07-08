@@ -159,25 +159,6 @@ The system records and reports key care situations:
 
 For fall-related events, the system prioritizes safety confirmation and provides family members with concise status information and available desensitized evidence.
 
-## Deployment Notes
-
-Do not commit secrets or local runtime artifacts:
-
-```text
-.env
-logs/
-*.db
-*.bin
-*.png
-*.gif
-private keys
-DashScope keys
-Feishu tokens or webhooks
-login passwords
-```
-
-The YOLOv8 Pose BPU model file should remain on the RDK device and should not be committed to this repository.
-
 ## Main Documents
 
 ```text
