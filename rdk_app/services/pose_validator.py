@@ -118,6 +118,52 @@ class PoseValidator:
             return None
         return (hist / norm).astype(np.float32)
 
+    def _box_iou(self, left, right):
+        lx1, ly1, lx2, ly2 = [float(v) for v in left]
+        rx1, ry1, rx2, ry2 = [float(v) for v in right]
+        ix1, iy1 = max(lx1, rx1), max(ly1, ry1)
+        ix2, iy2 = min(lx2, rx2), min(ly2, ry2)
+        iw, ih = max(0.0, ix2 - ix1), max(0.0, iy2 - iy1)
+        inter = iw * ih
+        if inter <= 0:
+            return 0.0
+        left_area = max(1.0, (lx2 - lx1) * (ly2 - ly1))
+        right_area = max(1.0, (rx2 - rx1) * (ry2 - ry1))
+        return float(inter / max(1.0, left_area + right_area - inter))
+
+    def _is_duplicate_pose(self, candidate, kept):
+        small_area = min(float(candidate["area"]), float(kept["area"]))
+        large_area = max(float(candidate["area"]), float(kept["area"]))
+        area_ratio = small_area / max(large_area, 1.0)
+        if area_ratio > 0.48:
+            return False
+
+        iou = self._box_iou(candidate["box"], kept["box"])
+        if iou >= 0.22:
+            return True
+
+        dx = abs(float(candidate["cx"]) - float(kept["cx"]))
+        dy = abs(float(candidate["cy"]) - float(kept["cy"]))
+        distance = float(np.hypot(dx, dy))
+        size_gate = np.sqrt(large_area) * 0.90 + np.sqrt(small_area) * 0.45
+        frame_gate = CAMERA_WIDTH * 0.42
+        return bool(
+            area_ratio <= 0.36
+            and distance <= max(size_gate, frame_gate)
+            and dx <= CAMERA_WIDTH * 0.38
+            and dy <= CAMERA_HEIGHT * 0.55
+        )
+
+    def _suppress_duplicate_targets(self, targets):
+        kept = []
+        duplicates = 0
+        for target in sorted(targets, key=lambda item: item["area"], reverse=True):
+            if any(self._is_duplicate_pose(target, existing) for existing in kept):
+                duplicates += 1
+                continue
+            kept.append(target)
+        return kept, duplicates
+
     def validate(self, frame, boxes, scores, kpts_list):
         cfg = self._cfg()
         targets = []
@@ -188,5 +234,8 @@ class PoseValidator:
                     "mode": self.mode,
                 }
             )
+        targets, duplicate_count = self._suppress_duplicate_targets(targets)
+        if duplicate_count:
+            rejects["duplicate_pose"] = rejects.get("duplicate_pose", 0) + duplicate_count
         self.last_stats = {"raw": len(kpts_list), "valid": len(targets), "rejects": rejects}
         return targets

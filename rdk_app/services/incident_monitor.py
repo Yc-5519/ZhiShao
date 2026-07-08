@@ -170,13 +170,32 @@ class IncidentMonitorService:
 
     def _check_no_person(self, state):
         target_count = int(state.get("target_count", 0) or 0)
-        seen_before = bool(str(state.get("last_seen_time") or "").strip())
-        if target_count > 0 or not seen_before:
-            self._bad_since.pop("no_person", None)
-            self._active.discard("no_person")
-            self._last_alert_at.pop("no_person", None)
+        if target_count > 0:
+            self._handle_condition(
+                key="no_person",
+                unhealthy=False,
+                threshold=self.no_person_seconds,
+                alert_title="智哨突发情况：长时间没有看到老人",
+                alert_message="",
+                recover_title="智哨突发情况已恢复：重新看到老人",
+                recover_message="系统已经重新看到可信人体目标，看护状态恢复正常。",
+                event_type="incident_no_person",
+            )
             return
-        self._bad_since.setdefault("no_person", self.now())
+        self._handle_condition(
+            key="no_person",
+            unhealthy=True,
+            threshold=self.no_person_seconds,
+            alert_title="智哨突发情况：长时间没有看到老人",
+            alert_message=(
+                "系统已经持续一段时间没有看到可信人体目标。\n"
+                "可能原因：摄像头被遮挡、摄像头倾倒、摄像头角度被移动，或者老人离开了画面。\n"
+                "请先通过电话或语音确认老人是否安全，再检查摄像头角度和现场环境。"
+            ),
+            recover_title="智哨突发情况已恢复：重新看到老人",
+            recover_message="系统已经重新看到可信人体目标，看护状态恢复正常。",
+            event_type="incident_no_person",
+        )
 
     def _handle_condition(
         self,
@@ -195,7 +214,7 @@ class IncidentMonitorService:
             if now - self._bad_since[key] < threshold:
                 return
             last_alert = self._last_alert_at.get(key, -10**12)
-            if key in self._active and now - last_alert < self.alert_cooldown_seconds:
+            if key in self._active and now - last_alert < self._cooldown_seconds(key):
                 return
             self._send_alert(key, alert_title, alert_message, event_type, "warning")
             return
@@ -230,6 +249,11 @@ class IncidentMonitorService:
             else:
                 self._active.discard(key)
                 self._last_alert_at.pop(key, None)
+
+    def _cooldown_seconds(self, key):
+        if key == "no_person":
+            return min(self.alert_cooldown_seconds, 60.0)
+        return self.alert_cooldown_seconds
 
     def _webhook_result(self, response):
         if not isinstance(response, dict):

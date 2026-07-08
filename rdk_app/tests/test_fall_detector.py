@@ -65,5 +65,47 @@ class FallDetectorRiskTests(unittest.TestCase):
         self.assertEqual(len(risky), 1)
 
 
+class PoseValidatorDuplicateTests(unittest.TestCase):
+    def _person_keypoints(self, x_offset=0, y_offset=0, scale=1.0):
+        kpts = np.zeros((17, 3), dtype=np.float32)
+        points = {
+            0: (80, 28),
+            5: (55, 88),
+            6: (105, 88),
+            7: (35, 145),
+            8: (125, 145),
+            11: (62, 205),
+            12: (98, 205),
+            13: (48, 300),
+            14: (112, 300),
+            15: (42, 390),
+            16: (118, 390),
+        }
+        for idx, (x, y) in points.items():
+            kpts[idx] = [x_offset + x * scale, y_offset + y * scale, 0.9]
+        return kpts
+
+    def test_nearby_small_duplicate_pose_is_suppressed(self):
+        frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        boxes = np.array(
+            [
+                [150, 45, 455, 470],
+                [60, 25, 215, 195],
+            ],
+            dtype=np.float32,
+        )
+        scores = np.array([0.92, 0.78], dtype=np.float32)
+        kpts_list = [
+            self._person_keypoints(165, 55, 0.92),
+            self._person_keypoints(65, 35, 0.38),
+        ]
+        validator = PoseValidator()
+
+        targets = validator.validate(frame, boxes, scores, kpts_list)
+
+        self.assertEqual(len(targets), 1)
+        self.assertGreater(targets[0]["area"], 100000)
+
+
 if __name__ == "__main__":
     unittest.main()
